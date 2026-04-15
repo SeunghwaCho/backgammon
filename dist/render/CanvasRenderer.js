@@ -509,15 +509,23 @@ export class CanvasRenderer {
             : pointIndex >= 13 && pointIndex <= 24;
         const count = pt.count;
         const cx = center.x;
-        // Dynamic sizing: shrink radius + spacing so all checkers fit inside pointH.
-        // Stack formula: first checker center at r from edge, each subsequent one
-        // moves by `spacing`. Total height = r + (count-1)*spacing + r = 2r + (count-1)*spacing.
-        // We want 2r + (count-1)*spacing <= pointH  with  spacing = r * overlapFactor.
-        // Solving for r:  r <= pointH / (2 + (count-1) * overlapFactor)
-        const OVERLAP = 1.75; // spacing = r * OVERLAP  (< 2 means slight overlap)
-        const maxR = l.pointH / (2 + (count - 1) * OVERLAP);
+        // Dynamic sizing: all checkers always drawn, no visual overlap.
+        //
+        // spacing ratio ≥ 2.0  →  spacing ≥ diameter  →  checkers never overlap.
+        // Using 2.05 gives a small gap between consecutive checkers.
+        //
+        // Total stack height  = 2r + (count-1)*spacing
+        //                     = 2r + (count-1)*r*RATIO
+        //                     = r * (2 + (count-1)*RATIO)
+        //
+        // Solve for max r that fits inside pointH:
+        //   r_max = pointH / (2 + (count-1)*RATIO)
+        //
+        // Use full checkerR when it fits; otherwise shrink.
+        const RATIO = 2.05; // ≥ 2 → no overlap, slight gap
+        const maxR = l.pointH / (2 + (count - 1) * RATIO);
         const r = Math.min(l.checkerR, maxR);
-        const spacing = r * OVERLAP;
+        const spacing = r * RATIO;
         const dir = isTop ? 1 : -1;
         const baseY = isTop
             ? l.boardY + r
@@ -527,11 +535,10 @@ export class CanvasRenderer {
             const cy = baseY + dir * i * spacing;
             this.drawChecker(cx, cy, r, pt.owner, isSelected);
         }
-        // If checkers are heavily squished (> 8), show a small count badge
-        // on the innermost checker so it's still easy to read the number.
-        if (count > 8) {
+        // Show count badge when checkers are small (r shrunk below 60% of default).
+        if (r < l.checkerR * 0.6) {
             const innermostY = baseY + dir * (count - 1) * spacing;
-            const fontSize = Math.max(8, r * 0.9);
+            const fontSize = Math.max(8, r * 1.0);
             this.ctx.font = `bold ${fontSize}px sans-serif`;
             this.ctx.fillStyle = '#ffff55';
             this.ctx.textAlign = 'center';
