@@ -854,19 +854,23 @@ export class CanvasRenderer {
     const l = this.layout;
     const ctx = this.ctx;
 
-    const diceSize = Math.min(36, l.checkerR * 1.8, 44) * l.fontScale;
-    const padding = 6;
+    // ~2× larger than before: was min(36, checkerR*1.8, 44), now min(72, checkerR*3.6, 88)
+    const diceSize = Math.min(72, l.checkerR * 3.6, 88) * l.fontScale;
+    const padding = 10;
     const player = state.currentPlayer;
 
     let diceX: number, diceY: number;
 
     if (l.isPortrait) {
-      diceX = l.boardX + l.boardW / 2 + 4;
-      diceY = l.boardY + l.boardH / 2 - diceSize - padding;
+      // Center the two dice horizontally in the right half of the board
+      const totalW = diceSize * 2 + padding;
+      diceX = l.boardX + l.boardW / 2 + (l.boardW / 2 - totalW) / 2;
+      diceY = l.boardY + l.boardH / 2 - diceSize / 2;
     } else {
-      // Place dice in bar area
-      diceX = l.barX + l.barW / 2 - diceSize - padding / 2;
-      diceY = l.boardY + l.boardH / 2 - diceSize;
+      // Center inside the bar area
+      const totalW = diceSize * 2 + padding;
+      diceX = l.barX + (l.barW - totalW) / 2;
+      diceY = l.boardY + l.boardH / 2 - diceSize / 2;
     }
 
     const isWhite = player === 'white';
@@ -893,10 +897,7 @@ export class CanvasRenderer {
       ctx.font = `${fontSize}px sans-serif`;
       ctx.fillStyle = COLORS.textLight;
       ctx.textAlign = 'left';
-      const rx = l.isPortrait
-        ? diceX
-        : l.barX + l.barW / 2 - diceSize;
-      ctx.fillText(`×${state.dice.remaining.length}`, rx, diceY + diceSize + 14);
+      ctx.fillText(`×${state.dice.remaining.length}`, diceX, diceY + diceSize + 16);
     }
   }
 
