@@ -394,8 +394,12 @@ export class CanvasRenderer {
       if (sy >= l.boardY && sy <= l.boardY + l.boardH) return 26; // black bear off
     }
 
-    // Bar check
-    if (sx >= l.barX && sx <= l.barX + l.barW) {
+    // Bar check — use a hit zone wide enough to cover the checker visual.
+    // barW is a narrow rendering column (~33px) but bar checkers are drawn with
+    // radius checkerR * 0.9, which overflows barX..barX+barW on both sides.
+    const barCenterX = l.barX + l.barW / 2;
+    const barHitHalf = Math.max(l.barW / 2, l.checkerR * 1.05 + 4);
+    if (sx >= barCenterX - barHitHalf && sx <= barCenterX + barHitHalf) {
       if (sy >= l.boardY && sy <= l.boardY + l.boardH / 2) return 25; // black bar
       if (sy > l.boardY + l.boardH / 2 && sy <= l.boardY + l.boardH) return 0; // white bar
     }
@@ -440,7 +444,11 @@ export class CanvasRenderer {
     const col = Math.floor((sx - l.boardX) / l.pointW);
     if (col < 0 || col > 11) return null;
 
-    const barHitZone = Math.max(20, l.boardH * 0.06);
+    // Bar zone height must cover the full visible extent of the first stacked
+    // bar checker.  First checker center = midY ± checkerR * 1.05, radius =
+    // checkerR, so the outermost edge sits at midY ± checkerR * 2.05.
+    // Add a finger-touch margin of ~4 px.
+    const barHitZone = Math.max(l.checkerR * 4.5, l.boardH * 0.07);
     if (sy < midY - barHitZone / 2) {
       // Top half: points 13-24, col 0=13, col 11=24
       return 13 + col;
@@ -449,7 +457,7 @@ export class CanvasRenderer {
       return 12 - col;
     }
 
-    // In bar area (generous hit zone)
+    // In bar area
     return sy < midY ? 25 : 0;
   }
 
