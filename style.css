@@ -1,0 +1,91 @@
+/* Backgammon Game Styles */
+/* No CSS framework - pure CSS only */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0d1b0f;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#game-container {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+
+  /* Safe area insets for Galaxy Fold and other notched devices */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+#game-canvas {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* touch-action: none prevents default scroll/zoom on touch */
+  touch-action: none;
+  /* Prevent canvas blurriness on high-DPR screens */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  cursor: default;
+}
+
+/* Loading indicator (fallback if canvas fails) */
+#loading-fallback {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 1.2rem;
+  text-align: center;
+}
+
+/* Scrollbar hide for any overflow */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Media query adjustments for very small screens */
+@media (max-width: 360px) {
+  #game-container {
+    /* Extra tight layout hint - actual sizing done in JS */
+  }
+}
+
+/* Galaxy Fold 7 specific: folded mode (~390px) */
+@media (max-width: 400px) {
+  #game-canvas {
+    /* Portrait canvas rendering - JS handles layout */
+  }
+}
+
+/* Galaxy Fold 7 unfolded mode (~768px+) */
+@media (min-width: 600px) {
+  #game-canvas {
+    /* Landscape canvas rendering */
+  }
+}
+
+/* High DPI screens */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  #game-canvas {
+    image-rendering: auto;
+  }
+}
