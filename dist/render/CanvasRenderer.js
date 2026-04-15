@@ -48,7 +48,9 @@ export class CanvasRenderer {
     }
     computeLayout() {
         const isPortrait = this.width < 600;
-        const hudH = Math.min(80, this.height * 0.12);
+        // HUD height: at least 52px so buttons are always tappable.
+        // Use 13% of height but clamp between 52 and 80px.
+        const hudH = Math.max(52, Math.min(80, this.height * 0.13));
         if (isPortrait) {
             return this.computePortraitLayout(hudH);
         }
@@ -60,8 +62,9 @@ export class CanvasRenderer {
         const w = this.width;
         const h = this.height;
         const fontScale = Math.min(w / 800, h / 500);
-        // Board occupies most of the screen minus HUD at bottom
-        const boardH = h - hudH - 8;
+        // Reserve hudH at the bottom + a small gap so nothing spills under the HUD.
+        const boardH = h - hudH - 6;
+        const boardY = 4;
         // Bear-off areas on left and right sides
         const bearOffW = Math.min(50, w * 0.055);
         const boardX = bearOffW + 4;
@@ -72,9 +75,11 @@ export class CanvasRenderer {
         const pointH = boardH * 0.42;
         const checkerR = Math.min(pointW * 0.44, pointH / 5.5);
         const barX = boardX + pointW * 6;
+        // HUD starts right after the board area.
+        const hudY = boardY + boardH + 2;
         return {
             boardX,
-            boardY: 4,
+            boardY,
             boardW,
             boardH,
             pointW,
@@ -82,7 +87,7 @@ export class CanvasRenderer {
             barX,
             barW,
             checkerR,
-            hudY: boardH + 8,
+            hudY,
             hudH,
             whiteBearOffX: 0,
             blackBearOffX: w - bearOffW,
@@ -95,16 +100,17 @@ export class CanvasRenderer {
         const w = this.width;
         const h = this.height;
         const fontScale = Math.min(w / 390, h / 700);
-        // In portrait mode, board is vertical
-        // Top half: points 13-24 (AI side), bottom half: points 1-12 (human side)
-        // Bear-off areas at top and bottom edges
-        const bearOffH = Math.min(40, h * 0.05);
+        // Bear-off strips at the very top and just above the HUD.
+        const bearOffH = Math.max(28, Math.min(40, h * 0.04));
+        // HUD is at the bottom; board occupies the space between the top bear-off
+        // strip and the bottom bear-off strip, which sits just above the HUD.
+        const hudY = h - hudH;
         const boardY = bearOffH + 4;
-        const boardH = h - hudH - bearOffH * 2 - 16;
+        const boardH = hudY - bearOffH - boardY - 4; // gap between board and HUD
         const boardX = 4;
         const boardW = w - 8;
         // In portrait: 12 points per row (top row: 13-24, bottom row: 1-12)
-        const barH_val = Math.max(16, boardH * 0.03);
+        const barH_val = Math.max(14, boardH * 0.025);
         const pointH = (boardH - barH_val) / 2;
         const pointW = boardW / 12;
         const checkerR = Math.min(pointW * 0.44, pointH / 5.5);
@@ -121,7 +127,7 @@ export class CanvasRenderer {
             barX,
             barW,
             checkerR,
-            hudY: h - hudH,
+            hudY,
             hudH,
             whiteBearOffX: boardX,
             blackBearOffX: boardX,

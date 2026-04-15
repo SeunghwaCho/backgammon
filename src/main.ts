@@ -65,14 +65,21 @@ async function init(): Promise<void> {
   const container = document.getElementById('game-container')!;
 
   function resizeCanvas(): void {
-    const w = container.clientWidth;
-    const h = container.clientHeight;
+    // visualViewport gives the actual visible area on mobile browsers,
+    // correctly excluding the address bar and navigation bar on Galaxy Fold.
+    // Falls back to window.innerWidth/Height, then container client size.
+    const vv = window.visualViewport;
+    const w = vv ? Math.round(vv.width) : (window.innerWidth || container.clientWidth);
+    const h = vv ? Math.round(vv.height) : (window.innerHeight || container.clientHeight);
     const dpr = window.devicePixelRatio || 1;
 
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
+    // Position canvas to match visualViewport offset (handles address bar shrink)
+    canvas.style.left = (vv ? vv.offsetLeft : 0) + 'px';
+    canvas.style.top = (vv ? vv.offsetTop : 0) + 'px';
 
     // Reset transform and scale for DPR
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -80,6 +87,12 @@ async function init(): Promise<void> {
     renderer.setSize(w, h);
     inputController?.updateLayout(w, h);
     render();
+  }
+
+  // visualViewport resize: fires when address bar shows/hides or fold/unfold
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', resizeCanvas);
+    window.visualViewport.addEventListener('scroll', resizeCanvas);
   }
 
   // Use ResizeObserver for Galaxy Fold 7 fold/unfold events
@@ -91,7 +104,7 @@ async function init(): Promise<void> {
   // Also listen for window resize as fallback
   window.addEventListener('resize', resizeCanvas);
   window.addEventListener('orientationchange', () => {
-    setTimeout(resizeCanvas, 100); // slight delay for orientation change
+    setTimeout(resizeCanvas, 150); // slight delay for orientation change
   });
 
   // Setup input controller

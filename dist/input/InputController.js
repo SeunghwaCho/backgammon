@@ -31,41 +31,78 @@ export class InputController {
             return;
         const hudY = layout.hudY;
         const hudH = layout.hudH;
-        const btnH = Math.min(32, hudH * 0.55);
-        const btnW = Math.min(90, canvasW * 0.2);
-        const fontSize = layout.fontScale;
-        // Right side buttons in HUD
-        const margin = 8;
-        const rightEdge = canvasW - margin;
-        this.buttons = [
-            {
-                x: rightEdge - btnW * 3 - margin * 2,
-                y: hudY + (hudH - btnH) / 2,
-                w: btnW,
-                h: btnH,
-                action: { type: 'rollDice' },
-                label: 'ROLL',
-                visible: (s) => s.phase === 'waitingForRoll' && s.currentPlayer === 'white',
-            },
-            {
-                x: rightEdge - btnW * 2 - margin,
-                y: hudY + (hudH - btnH) / 2,
-                w: btnW,
-                h: btnH,
-                action: { type: 'newGame' },
-                label: 'New Game',
-                visible: (_) => true,
-            },
-            {
-                x: rightEdge - btnW,
-                y: hudY + (hudH - btnH) / 2,
-                w: btnW,
-                h: btnH,
-                action: { type: 'clearSave' },
-                label: 'Clear Save',
-                visible: (_) => true,
-            },
-        ];
+        // Button height: at least 36px for touch targets, max 40px.
+        const btnH = Math.max(36, Math.min(40, hudH * 0.7));
+        const btnY = hudY + (hudH - btnH) / 2;
+        const margin = 6;
+        if (layout.isPortrait) {
+            // Portrait (Fold 7 folded): three equal buttons across full width
+            const totalMargin = margin * 4; // left + between*2 + right
+            const btnW = Math.floor((canvasW - totalMargin) / 3);
+            this.buttons = [
+                {
+                    x: margin,
+                    y: btnY,
+                    w: btnW,
+                    h: btnH,
+                    action: { type: 'rollDice' },
+                    label: 'ROLL',
+                    visible: (s) => s.phase === 'waitingForRoll' && s.currentPlayer === 'white',
+                },
+                {
+                    x: margin * 2 + btnW,
+                    y: btnY,
+                    w: btnW,
+                    h: btnH,
+                    action: { type: 'newGame' },
+                    label: 'New Game',
+                    visible: (_) => true,
+                },
+                {
+                    x: margin * 3 + btnW * 2,
+                    y: btnY,
+                    w: btnW,
+                    h: btnH,
+                    action: { type: 'clearSave' },
+                    label: 'Clear Save',
+                    visible: (_) => true,
+                },
+            ];
+        }
+        else {
+            // Landscape (Fold 7 unfolded / desktop): buttons on the right side
+            const btnW = Math.min(90, canvasW * 0.18);
+            const rightEdge = canvasW - margin;
+            this.buttons = [
+                {
+                    x: rightEdge - btnW * 3 - margin * 2,
+                    y: btnY,
+                    w: btnW,
+                    h: btnH,
+                    action: { type: 'rollDice' },
+                    label: 'ROLL',
+                    visible: (s) => s.phase === 'waitingForRoll' && s.currentPlayer === 'white',
+                },
+                {
+                    x: rightEdge - btnW * 2 - margin,
+                    y: btnY,
+                    w: btnW,
+                    h: btnH,
+                    action: { type: 'newGame' },
+                    label: 'New Game',
+                    visible: (_) => true,
+                },
+                {
+                    x: rightEdge - btnW,
+                    y: btnY,
+                    w: btnW,
+                    h: btnH,
+                    action: { type: 'clearSave' },
+                    label: 'Clear Save',
+                    visible: (_) => true,
+                },
+            ];
+        }
     }
     getButtons() {
         return this.buttons;
