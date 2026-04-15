@@ -228,3 +228,110 @@ export function renderRestorePrompt(
 
   return { continueBtn, newGameBtn };
 }
+
+// ── New-game confirmation overlay ─────────────────────────────────────────────
+
+export interface ConfirmButtons {
+  yesBtn: ButtonArea;
+  noBtn: ButtonArea;
+}
+
+export function renderNewGameConfirm(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  canvasH: number,
+  fontScale: number
+): ConfirmButtons {
+  const loc = t();
+
+  // Dim background
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  // Dialog box
+  const boxW = Math.min(320 * fontScale, canvasW * 0.85);
+  const boxH = Math.min(170 * fontScale, canvasH * 0.38);
+  const bx = (canvasW - boxW) / 2;
+  const by = (canvasH - boxH) / 2;
+
+  ctx.fillStyle = '#1e2a1e';
+  drawRoundRect(ctx, bx, by, boxW, boxH, 12);
+  ctx.fill();
+  ctx.strokeStyle = '#e07020';
+  ctx.lineWidth = 2;
+  drawRoundRect(ctx, bx, by, boxW, boxH, 12);
+  ctx.stroke();
+
+  // Title
+  const titleSize = Math.max(15, 19 * fontScale);
+  ctx.font = `bold ${titleSize}px sans-serif`;
+  ctx.fillStyle = '#ffe066';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(loc.confirmNewGameTitle, canvasW / 2, by + boxH * 0.22);
+
+  // Body (supports \n)
+  const bodySize = Math.max(11, 13 * fontScale);
+  ctx.font = `${bodySize}px sans-serif`;
+  ctx.fillStyle = '#cccccc';
+  const lines = loc.confirmNewGameBody.split('\n');
+  const lineH = bodySize * 1.5;
+  const bodyStartY = by + boxH * 0.42;
+  lines.forEach((line, i) => {
+    ctx.fillText(line, canvasW / 2, bodyStartY + i * lineH);
+  });
+
+  // Buttons
+  const btnW = boxW * 0.36;
+  const btnH = Math.min(44, boxH * 0.25);
+  const btnY = by + boxH - btnH - 14 * fontScale;
+  const gap = boxW * 0.06;
+
+  const yesBtn: ButtonArea = {
+    x: canvasW / 2 - btnW - gap / 2,
+    y: btnY, w: btnW, h: btnH,
+    action: { type: 'confirmNewGame' },
+    label: loc.confirmYes,
+    emoji: '✅', text: loc.confirmYes.replace(/^[^\s]+\s*/, ''),
+    visible: () => true,
+  };
+
+  const noBtn: ButtonArea = {
+    x: canvasW / 2 + gap / 2,
+    y: btnY, w: btnW, h: btnH,
+    action: { type: 'cancelNewGame' },
+    label: loc.confirmNo,
+    emoji: '❌', text: loc.confirmNo.replace(/^[^\s]+\s*/, ''),
+    visible: () => true,
+  };
+
+  // Draw yes (green) / no (red)
+  const palette = [
+    { bg: '#2d7a2d', border: '#1a4f1a' },
+    { bg: '#7a2d2d', border: '#4f1a1a' },
+  ];
+  for (const [i, btn] of [yesBtn, noBtn].entries()) {
+    const p = palette[i];
+    ctx.fillStyle = p.bg;
+    drawRoundRect(ctx, btn.x, btn.y, btn.w, btn.h, 6);
+    ctx.fill();
+    ctx.strokeStyle = p.border;
+    ctx.lineWidth = 1.5;
+    drawRoundRect(ctx, btn.x, btn.y, btn.w, btn.h, 6);
+    ctx.stroke();
+
+    const emojiSize = Math.max(14, Math.min(20, btn.h * 0.42));
+    const textSize  = Math.max(9,  Math.min(12, btn.h * 0.26));
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.font = `${emojiSize}px sans-serif`;
+    ctx.fillText(btn.emoji, btn.x + btn.w / 2, btn.y + btn.h * 0.40);
+    ctx.font = `bold ${textSize}px sans-serif`;
+    ctx.fillText(btn.text, btn.x + btn.w / 2, btn.y + btn.h * 0.80);
+  }
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  return { yesBtn, noBtn };
+}

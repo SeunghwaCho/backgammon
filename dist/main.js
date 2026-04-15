@@ -5,7 +5,7 @@ import { rollDice as reducerRollDice, selectPoint as reducerSelectPoint, applyPl
 import { chooseBestSequence } from './ai/BackgammonAI.js';
 import { CanvasRenderer } from './render/CanvasRenderer.js';
 import { InputController } from './input/InputController.js';
-import { renderButtons, renderRestorePrompt } from './ui/HUD.js';
+import { renderButtons, renderRestorePrompt, renderNewGameConfirm } from './ui/HUD.js';
 import { saveGame, loadGame, deleteSave } from './persistence/IndexedDbStore.js';
 import { validateSaveData, SCHEMA_VERSION, APP_VERSION, } from './persistence/SaveValidation.js';
 import { rollTwoDice } from './utils/random.js';
@@ -20,6 +20,9 @@ let aiInProgress = false;
 let startupPhase = 'loading';
 let savedData = null;
 let restoreButtons = null;
+// New-game confirmation overlay
+let confirmingNewGame = false;
+let confirmButtons = null;
 // Error display timeout
 let errorClearTimeout = null;
 // ─── Initialization ───────────────────────────────────────────────────────────
@@ -120,22 +123,32 @@ async function tryLoadSavedGame() {
 }
 // ─── Action Handler ───────────────────────────────────────────────────────────
 function handleAction(action) {
-    // Handle startup prompt actions
+    // ── Confirmation overlay intercepts all actions ────────────────────────────
+    if (confirmingNewGame) {
+        if (action.type === 'confirmNewGame') {
+            confirmingNewGame = false;
+            confirmButtons = null;
+            handleNewGame();
+        }
+        else if (action.type === 'cancelNewGame') {
+            confirmingNewGame = false;
+            confirmButtons = null;
+            render();
+        }
+        // Block every other action while the dialog is open
+        return;
+    }
+    // ── Startup restore prompt ─────────────────────────────────────────────────
     if (startupPhase === 'promptRestore') {
         if (action.type === 'continueGame') {
             loadSavedGame();
             return;
         }
         else if (action.type === 'newGame') {
+            // Even from the restore prompt, ask for confirmation
             startupPhase = 'playing';
-            gameState = startNewGame();
-            autoSave();
+            confirmingNewGame = true;
             render();
-            return;
-        }
-        // Check if restore buttons were clicked
-        if (restoreButtons && action.type === 'selectPoint') {
-            // Check against restore button areas
             return;
         }
         return;
@@ -153,7 +166,9 @@ function handleAction(action) {
             handleMakeMove(action.move);
             break;
         case 'newGame':
-            handleNewGame();
+            // Show confirmation dialog instead of acting immediately
+            confirmingNewGame = true;
+            render();
             break;
         case 'clearSave':
             handleClearSave();
@@ -163,7 +178,6 @@ function handleAction(action) {
             break;
         case 'toggleLang':
             toggleLang();
-            // Buttons re-labelled; layout update propagates through onLangChange callback
             break;
     }
 }
@@ -446,6 +460,16 @@ function render() {
         if (layout) {
             renderButtons(ctx, inputController.getButtons(), gameState, layout.fontScale);
         }
+        // Render new-game confirmation overlay (on top of everything)
+        if (confirmingNewGame) {
+            const w = canvas.clientWidth;
+            const h = canvas.clientHeight;
+            const fs = layout?.fontScale ?? 1;
+            confirmButtons = renderNewGameConfirm(ctx, w, h, fs);
+        }
+        else {
+            confirmButtons = null;
+        }
     }
     catch (e) {
         console.error('[Render] Error during render:', e);
@@ -512,19 +536,47 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 // ─── Canvas Click Intercept for Startup ───────────────────────────────────────
+function handleConfirmClick(x, y) {
+    if (!confirmingNewGame || !confirmButtons)
+        return false;
+    const { yesBtn, noBtn } = confirmButtons;
+    if (x >= yesBtn.x && x <= yesBtn.x + yesBtn.w && y >= yesBtn.y && y <= yesBtn.y + yesBtn.h) {
+        handleAction({ type: 'confirmNewGame' });
+        return true;
+    }
+    if (x >= noBtn.x && x <= noBtn.x + noBtn.w && y >= noBtn.y && y <= noBtn.y + noBtn.h) {
+        handleAction({ type: 'cancelNewGame' });
+        return true;
+    }
+    // Tap outside = cancel
+    handleAction({ type: 'cancelNewGame' });
+    return true;
+}
 function setupStartupClickInterceptor() {
     canvas.addEventListener('mousedown', (e) => {
-        if (startupPhase === 'promptRestore') {
-            const rect = canvas.getBoundingClientRect();
-            handleStartupClick(e.clientX - rect.left, e.clientY - rect.top);
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        if (confirmingNewGame) {
+            handleConfirmClick(x, y);
+            return;
         }
+        if (startupPhase === 'promptRestore')
+            handleStartupClick(x, y);
     });
     canvas.addEventListener('touchstart', (e) => {
-        if (startupPhase === 'promptRestore' && e.touches.length > 0) {
-            e.preventDefault();
-            const rect = canvas.getBoundingClientRect();
-            handleStartupClick(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
+        if (e.touches.length === 0)
+            return;
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const x = e.touches[0].clientX - rect.left;
+        const y = e.touches[0].clientY - rect.top;
+        if (confirmingNewGame) {
+            handleConfirmClick(x, y);
+            return;
         }
+        if (startupPhase === 'promptRestore')
+            handleStartupClick(x, y);
     }, { passive: false });
 }
 // ─── Entry Point ──────────────────────────────────────────────────────────────

@@ -10,7 +10,9 @@ export type InputAction =
   | { type: 'rollDice' }
   | { type: 'selectPoint'; pointIndex: number }
   | { type: 'makeMove'; move: Move }
-  | { type: 'newGame' }
+  | { type: 'newGame' }           // request — shows confirmation dialog
+  | { type: 'confirmNewGame' }    // user pressed Yes
+  | { type: 'cancelNewGame' }     // user pressed No
   | { type: 'clearSave' }
   | { type: 'continueGame' }
   | { type: 'toggleLang' };

@@ -49,6 +49,12 @@ export interface LocaleStrings {
   bornOffWhite: string;
   bornOffBlack: string;
 
+  // New game confirmation
+  confirmNewGameTitle: string;
+  confirmNewGameBody: string;
+  confirmYes: string;
+  confirmNo: string;
+
   // Error / info messages
   errCannotMove: string;
   errInvalidMove: string;
@@ -97,6 +103,11 @@ const KO: LocaleStrings = {
   bornOffWhite: '흰 bear-off',
   bornOffBlack: '검 bear-off',
 
+  confirmNewGameTitle: '새 게임 시작',
+  confirmNewGameBody: '진행 중인 게임이 사라집니다.\n정말 새 게임을 시작하시겠습니까?',
+  confirmYes: '✅ 확인',
+  confirmNo: '❌ 취소',
+
   errCannotMove: '그 곳으로 이동할 수 없습니다.',
   errInvalidMove: '잘못된 이동입니다.',
   msgSaveCleared: '저장 데이터가 삭제되었습니다.',
@@ -143,6 +154,11 @@ const EN: LocaleStrings = {
   labelBlack: 'Black',
   bornOffWhite: 'White off',
   bornOffBlack: 'Black off',
+
+  confirmNewGameTitle: 'New Game',
+  confirmNewGameBody: 'Your current game will be lost.\nAre you sure you want to start a new game?',
+  confirmYes: '✅ Yes',
+  confirmNo: '❌ No',
 
   errCannotMove: 'Cannot move there.',
   errInvalidMove: 'Invalid move.',
