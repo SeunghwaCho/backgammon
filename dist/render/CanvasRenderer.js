@@ -507,40 +507,37 @@ export class CanvasRenderer {
         const isTop = l.isPortrait
             ? pointIndex >= 13
             : pointIndex >= 13 && pointIndex <= 24;
-        const maxVisible = 5;
-        const spacing = Math.min(l.checkerR * 1.9, l.pointH / (maxVisible + 0.5));
-        const dir = isTop ? 1 : -1;
+        const count = pt.count;
         const cx = center.x;
-        // Determine start Y: checkers stack from the board edge inward
+        // Dynamic sizing: shrink radius + spacing so all checkers fit inside pointH.
+        // Stack formula: first checker center at r from edge, each subsequent one
+        // moves by `spacing`. Total height = r + (count-1)*spacing + r = 2r + (count-1)*spacing.
+        // We want 2r + (count-1)*spacing <= pointH  with  spacing = r * overlapFactor.
+        // Solving for r:  r <= pointH / (2 + (count-1) * overlapFactor)
+        const OVERLAP = 1.75; // spacing = r * OVERLAP  (< 2 means slight overlap)
+        const maxR = l.pointH / (2 + (count - 1) * OVERLAP);
+        const r = Math.min(l.checkerR, maxR);
+        const spacing = r * OVERLAP;
+        const dir = isTop ? 1 : -1;
         const baseY = isTop
-            ? l.boardY + l.checkerR
-            : l.boardY + l.boardH - l.checkerR;
-        for (let i = 0; i < pt.count && i < maxVisible; i++) {
+            ? l.boardY + r
+            : l.boardY + l.boardH - r;
+        const isSelected = pointIndex === state.selectedPoint;
+        for (let i = 0; i < count; i++) {
             const cy = baseY + dir * i * spacing;
-            this.drawChecker(cx, cy, l.checkerR, pt.owner, pointIndex === state.selectedPoint);
+            this.drawChecker(cx, cy, r, pt.owner, isSelected);
         }
-        // If more than maxVisible, show count
-        if (pt.count > maxVisible) {
-            const cx = center.x;
-            let labelY;
-            if (l.isPortrait) {
-                if (pointIndex >= 13) {
-                    labelY = l.boardY + spacing * maxVisible + l.checkerR * 1.5;
-                }
-                else {
-                    labelY = l.boardY + l.boardH - spacing * maxVisible - l.checkerR * 1.5;
-                }
-            }
-            else {
-                labelY = isTop
-                    ? l.boardY + spacing * maxVisible + l.checkerR * 1.5
-                    : l.boardY + l.boardH - spacing * maxVisible - l.checkerR * 1.5;
-            }
-            const fontSize = Math.max(10, 12 * l.fontScale);
+        // If checkers are heavily squished (> 8), show a small count badge
+        // on the innermost checker so it's still easy to read the number.
+        if (count > 8) {
+            const innermostY = baseY + dir * (count - 1) * spacing;
+            const fontSize = Math.max(8, r * 0.9);
             this.ctx.font = `bold ${fontSize}px sans-serif`;
-            this.ctx.fillStyle = '#ffff00';
+            this.ctx.fillStyle = '#ffff55';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText(`+${pt.count - maxVisible}`, cx, labelY);
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(String(count), cx, innermostY);
+            this.ctx.textBaseline = 'alphabetic';
         }
     }
     drawChecker(cx, cy, r, owner, isSelected) {
