@@ -179,8 +179,11 @@ export function renderRestorePrompt(ctx, canvasW, canvasH, saveTime, fontScale) 
     ctx.textAlign = 'left';
     return { continueBtn, newGameBtn };
 }
-export function renderNewGameConfirm(ctx, canvasW, canvasH, fontScale) {
-    const loc = t();
+/**
+ * Renders a generic confirmation dialog and returns button hit areas.
+ * accentColor: border/accent color for the dialog box.
+ */
+export function renderConfirmDialog(ctx, canvasW, canvasH, fontScale, title, body, yesAction, noAction, yesLabel, noLabel, accentColor = '#e07020') {
     // Dim background
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, canvasW, canvasH);
@@ -189,10 +192,10 @@ export function renderNewGameConfirm(ctx, canvasW, canvasH, fontScale) {
     const boxH = Math.min(170 * fontScale, canvasH * 0.38);
     const bx = (canvasW - boxW) / 2;
     const by = (canvasH - boxH) / 2;
-    ctx.fillStyle = '#1e2a1e';
+    ctx.fillStyle = '#1e2020';
     drawRoundRect(ctx, bx, by, boxW, boxH, 12);
     ctx.fill();
-    ctx.strokeStyle = '#e07020';
+    ctx.strokeStyle = accentColor;
     ctx.lineWidth = 2;
     drawRoundRect(ctx, bx, by, boxW, boxH, 12);
     ctx.stroke();
@@ -202,12 +205,12 @@ export function renderNewGameConfirm(ctx, canvasW, canvasH, fontScale) {
     ctx.fillStyle = '#ffe066';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(loc.confirmNewGameTitle, canvasW / 2, by + boxH * 0.22);
+    ctx.fillText(title, canvasW / 2, by + boxH * 0.22);
     // Body (supports \n)
     const bodySize = Math.max(11, 13 * fontScale);
     ctx.font = `${bodySize}px sans-serif`;
     ctx.fillStyle = '#cccccc';
-    const lines = loc.confirmNewGameBody.split('\n');
+    const lines = body.split('\n');
     const lineH = bodySize * 1.5;
     const bodyStartY = by + boxH * 0.42;
     lines.forEach((line, i) => {
@@ -221,17 +224,17 @@ export function renderNewGameConfirm(ctx, canvasW, canvasH, fontScale) {
     const yesBtn = {
         x: canvasW / 2 - btnW - gap / 2,
         y: btnY, w: btnW, h: btnH,
-        action: { type: 'confirmNewGame' },
-        label: loc.confirmYes,
-        emoji: '✅', text: loc.confirmYes.replace(/^[^\s]+\s*/, ''),
+        action: yesAction,
+        label: yesLabel,
+        emoji: '✅', text: yesLabel.replace(/^[^\s]+\s*/, ''),
         visible: () => true,
     };
     const noBtn = {
         x: canvasW / 2 + gap / 2,
         y: btnY, w: btnW, h: btnH,
-        action: { type: 'cancelNewGame' },
-        label: loc.confirmNo,
-        emoji: '❌', text: loc.confirmNo.replace(/^[^\s]+\s*/, ''),
+        action: noAction,
+        label: noLabel,
+        emoji: '❌', text: noLabel.replace(/^[^\s]+\s*/, ''),
         visible: () => true,
     };
     // Draw yes (green) / no (red)
@@ -260,5 +263,13 @@ export function renderNewGameConfirm(ctx, canvasW, canvasH, fontScale) {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     return { yesBtn, noBtn };
+}
+export function renderNewGameConfirm(ctx, canvasW, canvasH, fontScale) {
+    const loc = t();
+    return renderConfirmDialog(ctx, canvasW, canvasH, fontScale, loc.confirmNewGameTitle, loc.confirmNewGameBody, { type: 'confirmNewGame' }, { type: 'cancelNewGame' }, loc.confirmYes, loc.confirmNo, '#e07020');
+}
+export function renderClearSaveConfirm(ctx, canvasW, canvasH, fontScale) {
+    const loc = t();
+    return renderConfirmDialog(ctx, canvasW, canvasH, fontScale, loc.confirmClearSaveTitle, loc.confirmClearSaveBody, { type: 'confirmClearSave' }, { type: 'cancelClearSave' }, loc.confirmYes, loc.confirmNo, '#c0392b');
 }
 //# sourceMappingURL=HUD.js.map

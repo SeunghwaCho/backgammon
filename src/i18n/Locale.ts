@@ -55,6 +55,10 @@ export interface LocaleStrings {
   confirmYes: string;
   confirmNo: string;
 
+  // Clear save confirmation
+  confirmClearSaveTitle: string;
+  confirmClearSaveBody: string;
+
   // Error / info messages
   errCannotMove: string;
   errInvalidMove: string;
@@ -108,6 +112,9 @@ const KO: LocaleStrings = {
   confirmYes: '✅ 확인',
   confirmNo: '❌ 취소',
 
+  confirmClearSaveTitle: '저장 데이터 삭제',
+  confirmClearSaveBody: '저장된 게임 데이터가 삭제됩니다.\n정말 삭제하시겠습니까?',
+
   errCannotMove: '그 곳으로 이동할 수 없습니다.',
   errInvalidMove: '잘못된 이동입니다.',
   msgSaveCleared: '저장 데이터가 삭제되었습니다.',
@@ -159,6 +166,9 @@ const EN: LocaleStrings = {
   confirmNewGameBody: 'Your current game will be lost.\nAre you sure you want to start a new game?',
   confirmYes: '✅ Yes',
   confirmNo: '❌ No',
+
+  confirmClearSaveTitle: 'Delete Save Data',
+  confirmClearSaveBody: 'Saved game data will be deleted.\nAre you sure?',
 
   errCannotMove: 'Cannot move there.',
   errInvalidMove: 'Invalid move.',

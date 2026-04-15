@@ -14,7 +14,7 @@ import {
 import { chooseBestSequence } from './ai/BackgammonAI.js';
 import { CanvasRenderer } from './render/CanvasRenderer.js';
 import { InputController, InputAction, ButtonArea } from './input/InputController.js';
-import { renderButtons, renderRestorePrompt, renderNewGameConfirm, ConfirmButtons } from './ui/HUD.js';
+import { renderButtons, renderRestorePrompt, renderNewGameConfirm, renderClearSaveConfirm, ConfirmButtons } from './ui/HUD.js';
 import { saveGame, loadGame, deleteSave } from './persistence/IndexedDbStore.js';
 import {
   validateSaveData,
@@ -39,8 +39,9 @@ let startupPhase: StartupPhase = 'loading';
 let savedData: SaveData | null = null;
 let restoreButtons: { continueBtn: ButtonArea; newGameBtn: ButtonArea } | null = null;
 
-// New-game confirmation overlay
+// Confirmation overlays
 let confirmingNewGame = false;
+let confirmingClearSave = false;
 let confirmButtons: ConfirmButtons | null = null;
 
 // Error display timeout
@@ -175,6 +176,20 @@ function handleAction(action: InputAction): void {
     return;
   }
 
+  if (confirmingClearSave) {
+    if (action.type === 'confirmClearSave') {
+      confirmingClearSave = false;
+      confirmButtons = null;
+      handleClearSave();
+    } else if (action.type === 'cancelClearSave') {
+      confirmingClearSave = false;
+      confirmButtons = null;
+      render();
+    }
+    // Block every other action while the dialog is open
+    return;
+  }
+
   // ── Startup restore prompt ─────────────────────────────────────────────────
   if (startupPhase === 'promptRestore') {
     if (action.type === 'continueGame') {
@@ -212,7 +227,9 @@ function handleAction(action: InputAction): void {
       break;
 
     case 'clearSave':
-      handleClearSave();
+      // Show confirmation dialog instead of acting immediately
+      confirmingClearSave = true;
+      render();
       break;
 
     case 'continueGame':
@@ -541,12 +558,14 @@ function render(): void {
       renderButtons(ctx, inputController.getButtons(), gameState, layout.fontScale);
     }
 
-    // Render new-game confirmation overlay (on top of everything)
+    // Render confirmation overlays (on top of everything)
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    const fs = layout?.fontScale ?? 1;
     if (confirmingNewGame) {
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      const fs = layout?.fontScale ?? 1;
       confirmButtons = renderNewGameConfirm(ctx, w, h, fs);
+    } else if (confirmingClearSave) {
+      confirmButtons = renderClearSaveConfirm(ctx, w, h, fs);
     } else {
       confirmButtons = null;
     }
@@ -639,18 +658,18 @@ function delay(ms: number): Promise<void> {
 // ─── Canvas Click Intercept for Startup ───────────────────────────────────────
 
 function handleConfirmClick(x: number, y: number): boolean {
-  if (!confirmingNewGame || !confirmButtons) return false;
+  if (!confirmButtons) return false;
   const { yesBtn, noBtn } = confirmButtons;
   if (x >= yesBtn.x && x <= yesBtn.x + yesBtn.w && y >= yesBtn.y && y <= yesBtn.y + yesBtn.h) {
-    handleAction({ type: 'confirmNewGame' });
+    handleAction(yesBtn.action);
     return true;
   }
   if (x >= noBtn.x && x <= noBtn.x + noBtn.w && y >= noBtn.y && y <= noBtn.y + noBtn.h) {
-    handleAction({ type: 'cancelNewGame' });
+    handleAction(noBtn.action);
     return true;
   }
   // Tap outside = cancel
-  handleAction({ type: 'cancelNewGame' });
+  handleAction(noBtn.action);
   return true;
 }
 
@@ -659,7 +678,7 @@ function setupStartupClickInterceptor(): void {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    if (confirmingNewGame) { handleConfirmClick(x, y); return; }
+    if (confirmingNewGame || confirmingClearSave) { handleConfirmClick(x, y); return; }
     if (startupPhase === 'promptRestore') handleStartupClick(x, y);
   });
 
@@ -669,7 +688,7 @@ function setupStartupClickInterceptor(): void {
     const rect = canvas.getBoundingClientRect();
     const x = e.touches[0].clientX - rect.left;
     const y = e.touches[0].clientY - rect.top;
-    if (confirmingNewGame) { handleConfirmClick(x, y); return; }
+    if (confirmingNewGame || confirmingClearSave) { handleConfirmClick(x, y); return; }
     if (startupPhase === 'promptRestore') handleStartupClick(x, y);
   }, { passive: false });
 }

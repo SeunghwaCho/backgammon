@@ -13,7 +13,9 @@ export type InputAction =
   | { type: 'newGame' }           // request — shows confirmation dialog
   | { type: 'confirmNewGame' }    // user pressed Yes
   | { type: 'cancelNewGame' }     // user pressed No
-  | { type: 'clearSave' }
+  | { type: 'clearSave' }         // request — shows confirmation dialog
+  | { type: 'confirmClearSave' }  // user pressed Yes
+  | { type: 'cancelClearSave' }   // user pressed No
   | { type: 'continueGame' }
   | { type: 'toggleLang' };
 
