@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json && node --test dist-test/tests/*.test.js",
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0"
+  }
+}
