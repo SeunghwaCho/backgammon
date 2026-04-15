@@ -13,7 +13,7 @@ import {
   restoreFromSave,
 } from './game/Reducer.js';
 import { chooseBestSequence } from './ai/BackgammonAI.js';
-import { CanvasRenderer } from './render/CanvasRenderer.js';
+import { CanvasRenderer, ANIM_DICE_MS } from './render/CanvasRenderer.js';
 import { InputController, InputAction, ButtonArea } from './input/InputController.js';
 import { renderButtons, renderRestorePrompt, renderNewGameConfirm, renderClearSaveConfirm, ConfirmButtons } from './ui/HUD.js';
 import { saveGame, loadGame, deleteSave } from './persistence/IndexedDbStore.js';
@@ -25,6 +25,7 @@ import {
 import { rollTwoDice } from './utils/random.js';
 import { toggleLang, onLangChange, t } from './i18n/Locale.js';
 import { ANIM_MOVE_MS } from './render/AnimationSystem.js';
+import { audioSystem } from './utils/AudioSystem.js';
 
 // ─── App State ────────────────────────────────────────────────────────────────
 
@@ -258,14 +259,27 @@ function handleAction(action: InputAction): void {
     case 'toggleLang':
       toggleLang();
       break;
+
+    case 'toggleSound':
+      audioSystem.toggleMute();
+      // Rebuild button labels so the icon flips immediately
+      inputController.updateLayout(
+        canvas.clientWidth,
+        canvas.clientHeight
+      );
+      render();
+      break;
   }
 }
 
 function handleRollForFirst(): void {
   if (gameState.phase !== 'rollingForFirst') return;
 
+  audioSystem.playDiceRoll();
   const [wRoll, bRoll] = rollTwoDice();
   gameState = reducerRollForFirst(gameState, wRoll, bRoll);
+  renderer.queueDiceRoll(wRoll, bRoll);
+  startAnimLoop();
   render();
 
   if (wRoll !== bRoll) {
@@ -288,10 +302,13 @@ function handleRollDice(): void {
   if (gameState.phase !== 'waitingForRoll') return;
   if (gameState.currentPlayer !== 'white') return; // Only player can click roll
 
+  audioSystem.playDiceRoll();
   const [d1, d2] = rollTwoDice();
   gameState = reducerRollDice(gameState, d1, d2);
 
   autoSave();
+  renderer.queueDiceRoll(d1, d2);
+  startAnimLoop();
   render();
 
   // If no moves were available, the state already switched to AI's turn or next roll
@@ -386,6 +403,15 @@ function handleMakeMove(move: Move): void {
 
   autoSave();
 
+  // Sound feedback for the move
+  if (move.isHit) {
+    audioSystem.playHit();
+  } else if (move.to === -1 || move.to === 26) {
+    audioSystem.playBearOff();
+  } else {
+    audioSystem.playCheckerMove();
+  }
+
   // Hit effect when the human player captures an AI checker:
   // burst + captured piece flying to bar
   if (move.isHit) {
@@ -403,6 +429,7 @@ function handleMakeMove(move: Move): void {
   ) {
     scheduleAITurn();
   } else if (gameState.phase === 'gameOver') {
+    audioSystem.playWin();
     autoSave();
     render();
   }
@@ -450,11 +477,15 @@ async function runAITurn(): Promise<void> {
 
   // Roll dice for AI
   if (gameState.phase === 'waitingForRoll') {
+    audioSystem.playDiceRoll();
     const [d1, d2] = rollTwoDice();
     gameState = reducerRollDice(gameState, d1, d2);
     autoSave();
+    renderer.queueDiceRoll(d1, d2);
+    startAnimLoop();
     render();
-    await delay(300);
+    // Wait until dice animation settles on final values before making moves
+    await delay(Math.ceil(ANIM_DICE_MS * 0.68));
 
     // If no legal moves, already ended turn
     if (gameState.phase === 'waitingForRoll') {
@@ -488,6 +519,15 @@ async function runAITurn(): Promise<void> {
       move.from, move.to, gameState.currentPlayer, move.isHit
     );
 
+    // Sound for AI move
+    if (move.isHit) {
+      audioSystem.playHit();
+    } else if (move.to === -1 || move.to === 26) {
+      audioSystem.playBearOff();
+    } else {
+      audioSystem.playCheckerMove();
+    }
+
     gameState = applyMoveInternal(gameState, move);
     autoSave();
 
@@ -495,6 +535,7 @@ async function runAITurn(): Promise<void> {
     startAnimLoop();
 
     if (gameState.phase === 'gameOver') {
+      audioSystem.playLose();
       aiInProgress = false;
       return;
     }

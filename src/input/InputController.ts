@@ -5,6 +5,7 @@ import { CanvasRenderer } from '../render/CanvasRenderer.js';
 import { barIndex } from '../game/GameState.js';
 import { getSelectablePoints, getMovesFromPoint } from '../game/MoveGenerator.js';
 import { t } from '../i18n/Locale.js';
+import { audioSystem } from '../utils/AudioSystem.js';
 
 export type InputAction =
   | { type: 'rollDice' }
@@ -17,7 +18,8 @@ export type InputAction =
   | { type: 'confirmClearSave' }  // user pressed Yes
   | { type: 'cancelClearSave' }   // user pressed No
   | { type: 'continueGame' }
-  | { type: 'toggleLang' };
+  | { type: 'toggleLang' }
+  | { type: 'toggleSound' };
 
 export interface ButtonArea {
   x: number;
@@ -81,10 +83,13 @@ export class InputController {
 
     const loc = t();
 
+    const soundEmoji = audioSystem.muted ? '🔇' : '🔊';
+    const soundText  = audioSystem.muted ? loc.btnSoundOffText : loc.btnSoundOnText;
+
     if (layout.isPortrait) {
-      // Portrait (Fold 7 folded): 4 equal buttons across full width
-      const totalMargin = margin * 5;
-      const btnW = Math.floor((canvasW - totalMargin) / 4);
+      // Portrait: 5 equal buttons across full width
+      const totalMargin = margin * 6;
+      const btnW = Math.floor((canvasW - totalMargin) / 5);
       this.buttons = [
         {
           x: margin,
@@ -124,6 +129,17 @@ export class InputController {
           y: btnY,
           w: btnW,
           h: btnH,
+          action: { type: 'toggleSound' },
+          label: soundEmoji,
+          emoji: soundEmoji,
+          text: soundText,
+          visible: (_) => true,
+        },
+        {
+          x: margin * 5 + btnW * 4,
+          y: btnY,
+          w: btnW,
+          h: btnH,
           action: { type: 'toggleLang' },
           label: loc.btnLang,
           emoji: loc.btnLangEmoji,
@@ -132,13 +148,13 @@ export class InputController {
         },
       ];
     } else {
-      // Landscape (Fold 7 unfolded / desktop): buttons on the right side
-      const btnW = Math.min(88, canvasW * 0.14);
-      const langBtnW = Math.min(72, canvasW * 0.1);
+      // Landscape: buttons on the right side
+      const btnW    = Math.min(88, canvasW * 0.14);
+      const smallW  = Math.min(72, canvasW * 0.1);
       const rightEdge = canvasW - margin;
       this.buttons = [
         {
-          x: rightEdge - btnW * 3 - langBtnW - margin * 3,
+          x: rightEdge - btnW * 3 - smallW * 2 - margin * 4,
           y: btnY,
           w: btnW,
           h: btnH,
@@ -149,7 +165,7 @@ export class InputController {
           visible: (s) => (s.phase === 'waitingForRoll' && s.currentPlayer === 'white') || s.phase === 'rollingForFirst',
         },
         {
-          x: rightEdge - btnW * 2 - langBtnW - margin * 2,
+          x: rightEdge - btnW * 2 - smallW * 2 - margin * 3,
           y: btnY,
           w: btnW,
           h: btnH,
@@ -160,7 +176,7 @@ export class InputController {
           visible: (_) => true,
         },
         {
-          x: rightEdge - btnW - langBtnW - margin,
+          x: rightEdge - btnW - smallW * 2 - margin * 2,
           y: btnY,
           w: btnW,
           h: btnH,
@@ -171,9 +187,20 @@ export class InputController {
           visible: (_) => true,
         },
         {
-          x: rightEdge - langBtnW,
+          x: rightEdge - smallW * 2 - margin,
           y: btnY,
-          w: langBtnW,
+          w: smallW,
+          h: btnH,
+          action: { type: 'toggleSound' },
+          label: soundEmoji,
+          emoji: soundEmoji,
+          text: soundText,
+          visible: (_) => true,
+        },
+        {
+          x: rightEdge - smallW,
+          y: btnY,
+          w: smallW,
           h: btnH,
           action: { type: 'toggleLang' },
           label: loc.btnLang,

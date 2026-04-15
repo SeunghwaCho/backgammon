@@ -31,6 +31,17 @@ const COLORS = {
     winText: '#ffe066',
     barHighlight: '#ffaa00',
 };
+/** Duration of the dice-roll tumble animation (ms). */
+export const ANIM_DICE_MS = 650;
+/** Easing: accelerates from 0, overshoots 1 slightly, settles at 1. */
+function easeOutBack(t) {
+    const c1 = 1.70158;
+    return 1 + (c1 + 1) * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+/** Easing: decelerates to final value. */
+function easeOutCubicLocal(t) {
+    return 1 - Math.pow(1 - t, 3);
+}
 export class CanvasRenderer {
     constructor(ctx) {
         this.width = 800;
@@ -39,12 +50,18 @@ export class CanvasRenderer {
         // Maps from point index to canvas coordinates (center-top for bottom points, center-bottom for top)
         this.pointCoords = new Map();
         this.animSystem = new AnimationSystem();
+        this.diceRollAnim = null;
         this.ctx = ctx;
     }
     // ── Animation API ─────────────────────────────────────────────────────────────
-    /** True if any checker animation or hit burst is currently active. */
+    /** True if any checker animation, hit burst, or dice roll animation is active. */
     isAnimating() {
-        return this.animSystem.isActive();
+        if (this.animSystem.isActive())
+            return true;
+        if (this.diceRollAnim) {
+            return performance.now() - this.diceRollAnim.startTime < this.diceRollAnim.duration;
+        }
+        return false;
     }
     /**
      * Queue a checker-in-flight animation from pointIndex `fromIdx` to `toIdx`.
@@ -140,6 +157,36 @@ export class CanvasRenderer {
                 duration: ANIM_MOVE_MS,
             });
         }
+    }
+    /**
+     * Queue a dice-tumble animation for two dice.
+     * The animation shows random faces cycling rapidly, then settling on the
+     * final values.  The rAF loop (startAnimLoop in main.ts) must be started
+     * by the caller.
+     */
+    queueDiceRoll(val1, val2) {
+        if (!this.layout)
+            return;
+        const l = this.layout;
+        const diceSize = Math.min(72, l.checkerR * 3.6, 88) * l.fontScale;
+        const padding = 10;
+        let diceX, diceY;
+        if (l.isPortrait) {
+            const totalW = diceSize * 2 + padding;
+            diceX = l.boardX + l.boardW / 2 + (l.boardW / 2 - totalW) / 2;
+            diceY = l.boardY + l.boardH / 2 - diceSize / 2;
+        }
+        else {
+            const totalW = diceSize * 2 + padding;
+            diceX = l.barX + (l.barW - totalW) / 2;
+            diceY = l.boardY + l.boardH / 2 - diceSize / 2;
+        }
+        this.diceRollAnim = {
+            val1, val2,
+            diceX, diceY, diceSize,
+            startTime: performance.now(),
+            duration: ANIM_DICE_MS,
+        };
     }
     /** Canvas position for a given point index, bar, or bear-off. */
     getAnimPosition(pointIndex) {
@@ -460,6 +507,8 @@ export class CanvasRenderer {
         this.renderHUD(state);
         // Animation overlay: in-flight checkers and hit bursts (above board/HUD, below modal overlays)
         this.animSystem.render(this.ctx);
+        // Dice-roll tumble animation (above checker anims, below win/initial-roll screens)
+        this.renderDiceAnim();
         if (state.phase === 'gameOver' && state.winner) {
             this.renderWinScreen(state.winner);
         }
@@ -904,6 +953,10 @@ export class CanvasRenderer {
             return;
         if (!this.layout)
             return;
+        // Suppress static dice display while roll animation is playing
+        if (this.diceRollAnim &&
+            performance.now() - this.diceRollAnim.startTime < this.diceRollAnim.duration)
+            return;
         const l = this.layout;
         const ctx = this.ctx;
         // ~2× larger than before: was min(36, checkerR*1.8, 44), now min(72, checkerR*3.6, 88)
@@ -948,10 +1001,70 @@ export class CanvasRenderer {
             ctx.fillText(`×${state.dice.remaining.length}`, diceX, diceY + diceSize + 16);
         }
     }
-    drawDie(x, y, size, value, isWhite, used) {
+    /**
+     * Render the dice-tumble animation overlay.
+     * Called once per rAF frame from render().
+     */
+    renderDiceAnim() {
+        if (!this.diceRollAnim)
+            return;
+        const a = this.diceRollAnim;
+        const elapsed = performance.now() - a.startTime;
+        if (elapsed >= a.duration) {
+            this.diceRollAnim = null;
+            return;
+        }
+        const t = elapsed / a.duration;
+        const SETTLE = 0.65; // fraction at which face values stop cycling
+        // Alpha: fade in over first 8%, hold, fade out over last 18%
+        const alpha = t < 0.08 ? t / 0.08 :
+            t > 0.82 ? (1 - t) / 0.18 :
+                1.0;
+        // Current face values: cycle through different values during spin
+        const bucket = Math.floor(elapsed / 65);
+        const v1 = t < SETTLE ? ((bucket * 7 + 1) % 6) + 1 : a.val1;
+        const v2 = t < SETTLE ? ((bucket * 11 + 4) % 6) + 1 : a.val2;
+        // Scale: pop in with slight overshoot, tiny wobble during spin, settle bounce
+        let scale;
+        if (t < 0.12) {
+            scale = easeOutBack(t / 0.12);
+        }
+        else if (t < SETTLE) {
+            const spinProgress = (t - 0.12) / (SETTLE - 0.12);
+            scale = 1.0 + Math.sin(elapsed / 80) * 0.04 * (1 - spinProgress);
+        }
+        else {
+            const st = (t - SETTLE) / (1 - SETTLE);
+            scale = 1.0 + Math.sin(st * Math.PI) * 0.05;
+        }
+        // Rotation: starts fast, easeOut deceleration to final angle
+        const tNorm = Math.min(t / SETTLE, 1);
+        const easeT = easeOutCubicLocal(tNorm);
+        const angle1 = easeT * Math.PI * 8; // ~4 full turns CW
+        const angle2 = -easeT * Math.PI * 6; // ~3 full turns CCW
+        const size = a.diceSize * scale;
+        const padding = 10;
+        const cx1 = a.diceX + a.diceSize / 2;
+        const cx2 = a.diceX + a.diceSize + padding + a.diceSize / 2;
+        const cy = a.diceY + a.diceSize / 2;
+        const ctx = this.ctx;
+        // Die 1 (white style)
+        ctx.save();
+        ctx.translate(cx1, cy);
+        ctx.rotate(angle1);
+        this.drawDie(-size / 2, -size / 2, size, v1, true, false, alpha);
+        ctx.restore();
+        // Die 2 (white style, counter-rotation)
+        ctx.save();
+        ctx.translate(cx2, cy);
+        ctx.rotate(angle2);
+        this.drawDie(-size / 2, -size / 2, size, v2, true, false, alpha);
+        ctx.restore();
+    }
+    drawDie(x, y, size, value, isWhite, used, alpha = 1.0) {
         const ctx = this.ctx;
         const r = size * 0.15;
-        ctx.globalAlpha = used ? 0.35 : 1.0;
+        ctx.globalAlpha = used ? 0.35 * alpha : alpha;
         // Shadow
         ctx.fillStyle = 'rgba(0,0,0,0.4)';
         roundRect(ctx, x + 2, y + 2, size, size, r);

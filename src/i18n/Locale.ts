@@ -66,6 +66,10 @@ export interface LocaleStrings {
   rollForFirstWhiteFirst: string;
   rollForFirstBlackFirst: string;
 
+  // Sound toggle button
+  btnSoundOnText: string;   // label when sound is ON  (click to mute)
+  btnSoundOffText: string;  // label when sound is OFF (click to unmute)
+
   // Error / info messages
   errCannotMove: string;
   errInvalidMove: string;
@@ -100,6 +104,8 @@ const KO: LocaleStrings = {
   btnClearSave: '🗑️ 저장 삭제',
   btnClearSaveShort: '🗑️',
   btnLang: 'EN',
+  btnSoundOnText: '음소거',
+  btnSoundOffText: '소리켜기',
 
   newGameHint: '🔄 새 게임 버튼을 눌러 다시 시작하세요',
 
@@ -161,6 +167,8 @@ const EN: LocaleStrings = {
   btnClearSave: '🗑️ Clear Save',
   btnClearSaveShort: '🗑️',
   btnLang: '한국어',
+  btnSoundOnText: 'Mute',
+  btnSoundOffText: 'Unmute',
 
   newGameHint: 'Press 🔄 New Game to play again',
 
