@@ -22,6 +22,7 @@ import {
   APP_VERSION,
 } from './persistence/SaveValidation.js';
 import { rollTwoDice } from './utils/random.js';
+import { toggleLang, onLangChange, t } from './i18n/Locale.js';
 
 // ─── App State ────────────────────────────────────────────────────────────────
 
@@ -201,6 +202,11 @@ function handleAction(action: InputAction): void {
     case 'continueGame':
       loadSavedGame();
       break;
+
+    case 'toggleLang':
+      toggleLang();
+      // Buttons re-labelled; layout update propagates through onLangChange callback
+      break;
   }
 }
 
@@ -274,7 +280,7 @@ function handleSelectPoint(pointIndex: number): void {
     }
   } else {
     // Invalid click
-    setError('Cannot move from there.');
+    setError(t().errCannotMove);
   }
 
   render();
@@ -288,7 +294,7 @@ function handleMakeMove(move: Move): void {
 
   if (gameState === prevState) {
     // Move was rejected
-    setError('Invalid move.');
+    setError(t().errInvalidMove);
     render();
     return;
   }
@@ -325,10 +331,10 @@ function handleNewGame(): void {
 async function handleClearSave(): Promise<void> {
   try {
     await deleteSave();
-    setError('Save cleared.');
+    setError(t().msgSaveCleared);
   } catch (e) {
     console.error('[Save] Failed to clear save:', e);
-    setError('Failed to clear save data.');
+    setError(t().errClearFailed);
   }
   render();
 }
@@ -484,7 +490,7 @@ function loadSavedGame(): void {
     // Safe fallback: start new game
     startupPhase = 'playing';
     gameState = startNewGame();
-    setError('Could not restore save. Starting new game.');
+    setError(t().errRestoreFailed);
     autoSave();
     render();
   }
@@ -633,6 +639,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await init();
     setupStartupClickInterceptor();
+
+    // When language changes: rebuild button labels and re-render immediately.
+    onLangChange(() => {
+      const layout = renderer.getLayout();
+      if (layout) {
+        inputController.updateLayout(layout.boardX + layout.boardW + (layout.bearOffW || 0) * 2, layout.hudY + layout.hudH);
+      }
+      // Simpler: just use current canvas logical size stored by resizeCanvas
+      const vv = window.visualViewport;
+      const w = vv ? Math.round(vv.width) : window.innerWidth;
+      const h = vv ? Math.round(vv.height) : window.innerHeight;
+      inputController.updateLayout(w, h);
+      render();
+    });
   } catch (e) {
     console.error('[App] Fatal initialization error:', e);
     document.body.innerHTML = `

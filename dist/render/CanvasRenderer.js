@@ -2,6 +2,7 @@
 // Supports both landscape (≥600px) and portrait (<600px) modes for Galaxy Fold 7
 import { barIndex } from '../game/GameState.js';
 import { getSelectablePoints } from '../game/MoveGenerator.js';
+import { t } from '../i18n/Locale.js';
 // Layout constants
 const COLORS = {
     boardBg: '#1a472a',
@@ -686,7 +687,7 @@ export class CanvasRenderer {
         ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
-        ctx.fillText('W', wX, l.boardY + 16);
+        ctx.fillText('♙', wX, l.boardY + 16);
         ctx.fillText(`${state.whiteBorneOff}`, wX, l.boardY + 32);
         // Draw borne-off white checkers
         for (let i = 0; i < Math.min(state.whiteBorneOff, 8); i++) {
@@ -703,7 +704,7 @@ export class CanvasRenderer {
         ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.fillStyle = '#aaaaff';
         ctx.textAlign = 'center';
-        ctx.fillText('B', bX, l.boardY + 16);
+        ctx.fillText('♟', bX, l.boardY + 16);
         ctx.fillText(`${state.blackBorneOff}`, bX, l.boardY + 32);
         for (let i = 0; i < Math.min(state.blackBorneOff, 8); i++) {
             const cy = l.boardY + l.boardH - 10 - i * (l.bearOffW * 0.35 + 2);
@@ -727,7 +728,7 @@ export class CanvasRenderer {
         ctx.font = `${fontSize}px sans-serif`;
         ctx.fillStyle = COLORS.textLight;
         ctx.textAlign = 'left';
-        ctx.fillText(`W off: ${state.whiteBorneOff}`, l.boardX + 4, whiteY + bh / 2 + 4);
+        ctx.fillText(`♙ ${state.whiteBorneOff}`, l.boardX + 4, whiteY + bh / 2 + 4);
         // Black bear-off: above the board
         const blackY = l.boardY - bh - 4;
         ctx.fillStyle = 'rgba(26,26,46,0.2)';
@@ -738,7 +739,7 @@ export class CanvasRenderer {
         ctx.font = `${fontSize}px sans-serif`;
         ctx.fillStyle = '#aaaaff';
         ctx.textAlign = 'left';
-        ctx.fillText(`B off: ${state.blackBorneOff}`, l.boardX + 4, blackY + bh / 2 + 4);
+        ctx.fillText(`♟ ${state.blackBorneOff}`, l.boardX + 4, blackY + bh / 2 + 4);
     }
     drawDice(state) {
         if (!state.dice)
@@ -843,31 +844,32 @@ export class CanvasRenderer {
         ctx.font = `bold ${fontSize}px sans-serif`;
         const playerColor = state.currentPlayer === 'white' ? '#f5f0e8' : '#8888cc';
         ctx.fillStyle = playerColor;
-        const playerName = state.currentPlayer === 'white' ? 'YOU (White)' : 'AI (Black)';
+        const loc = t();
+        const playerName = state.currentPlayer === 'white' ? loc.youTurn : loc.aiTurn;
         if (state.phase === 'waitingForRoll') {
-            ctx.fillText(`${playerName}: Click ROLL`, x, cy - 4);
+            ctx.fillText(`${playerName}: ${loc.clickRoll}`, x, cy - 4);
         }
         else if (state.phase === 'playerActing') {
-            ctx.fillText(`${playerName}: Select a piece`, x, cy - 4);
+            ctx.fillText(`${playerName}: ${loc.selectPiece}`, x, cy - 4);
         }
         else if (state.phase === 'aiThinking') {
-            ctx.fillText(`AI thinking...`, x, cy - 4);
+            ctx.fillStyle = '#aaaacc';
+            ctx.fillText(loc.aiThinking, x, cy - 4);
         }
         else if (state.phase === 'gameOver') {
-            const winName = state.winner === 'white' ? 'YOU WIN!' : 'AI WINS!';
             ctx.fillStyle = COLORS.winText;
-            ctx.fillText(winName, x, cy - 4);
+            ctx.fillText(state.winner === 'white' ? loc.youWin : loc.aiWins, x, cy - 4);
         }
         // Dice info
         if (state.dice) {
-            const diceStr = `Dice: [${state.dice.remaining.join(', ')}]`;
+            const diceStr = `🎲 ${loc.diceLabel}: [${state.dice.remaining.join(', ')}]`;
             ctx.font = `${smallFont}px sans-serif`;
             ctx.fillStyle = COLORS.textDim;
-            ctx.fillText(diceStr, x, cy + 10);
+            ctx.fillText(diceStr, x, cy + 12);
         }
         // Save status
         if (state.lastSaveTime) {
-            const saveStr = `Saved ${formatTime(state.lastSaveTime)}`;
+            const saveStr = `💾 ${loc.savedAt} ${formatTime(state.lastSaveTime)}`;
             ctx.font = `${smallFont}px sans-serif`;
             ctx.fillStyle = '#558855';
             ctx.textAlign = 'right';
@@ -891,10 +893,11 @@ export class CanvasRenderer {
         ctx.textAlign = 'center';
         ctx.font = `bold ${Math.max(28, 36 * (this.layout?.fontScale ?? 1))}px sans-serif`;
         ctx.fillStyle = COLORS.winText;
-        ctx.fillText(winner === 'white' ? '🎉 YOU WIN! 🎉' : '🤖 AI WINS!', cx, cy - 20);
+        const loc = t();
+        ctx.fillText(winner === 'white' ? loc.youWin : loc.aiWins, cx, cy - 20);
         ctx.font = `${Math.max(14, 18 * (this.layout?.fontScale ?? 1))}px sans-serif`;
         ctx.fillStyle = '#cccccc';
-        ctx.fillText('Click "New Game" to play again', cx, cy + 20);
+        ctx.fillText(loc.newGameHint, cx, cy + 20);
         ctx.textAlign = 'left';
     }
     // Highlight valid target points with a glow effect

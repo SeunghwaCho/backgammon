@@ -4,6 +4,7 @@ import { GameState, Move } from '../game/Types.js';
 import { CanvasRenderer } from '../render/CanvasRenderer.js';
 import { barIndex } from '../game/GameState.js';
 import { getSelectablePoints, getMovesFromPoint } from '../game/MoveGenerator.js';
+import { t } from '../i18n/Locale.js';
 
 export type InputAction =
   | { type: 'rollDice' }
@@ -11,7 +12,8 @@ export type InputAction =
   | { type: 'makeMove'; move: Move }
   | { type: 'newGame' }
   | { type: 'clearSave' }
-  | { type: 'continueGame' };
+  | { type: 'continueGame' }
+  | { type: 'toggleLang' };
 
 export interface ButtonArea {
   x: number;
@@ -71,10 +73,12 @@ export class InputController {
 
     const margin = 6;
 
+    const loc = t();
+
     if (layout.isPortrait) {
-      // Portrait (Fold 7 folded): three equal buttons across full width
-      const totalMargin = margin * 4; // left + between*2 + right
-      const btnW = Math.floor((canvasW - totalMargin) / 3);
+      // Portrait (Fold 7 folded): 4 equal buttons across full width
+      const totalMargin = margin * 5; // left + between*3 + right
+      const btnW = Math.floor((canvasW - totalMargin) / 4);
       this.buttons = [
         {
           x: margin,
@@ -82,7 +86,7 @@ export class InputController {
           w: btnW,
           h: btnH,
           action: { type: 'rollDice' },
-          label: 'ROLL',
+          label: loc.btnRollShort,
           visible: (s) => s.phase === 'waitingForRoll' && s.currentPlayer === 'white',
         },
         {
@@ -91,7 +95,7 @@ export class InputController {
           w: btnW,
           h: btnH,
           action: { type: 'newGame' },
-          label: 'New Game',
+          label: loc.btnNewGameShort,
           visible: (_) => true,
         },
         {
@@ -100,40 +104,59 @@ export class InputController {
           w: btnW,
           h: btnH,
           action: { type: 'clearSave' },
-          label: 'Clear Save',
+          label: loc.btnClearSaveShort,
+          visible: (_) => true,
+        },
+        {
+          x: margin * 4 + btnW * 3,
+          y: btnY,
+          w: btnW,
+          h: btnH,
+          action: { type: 'toggleLang' },
+          label: loc.btnLang,
           visible: (_) => true,
         },
       ];
     } else {
       // Landscape (Fold 7 unfolded / desktop): buttons on the right side
-      const btnW = Math.min(90, canvasW * 0.18);
+      const btnW = Math.min(95, canvasW * 0.16);
+      const langBtnW = Math.min(70, canvasW * 0.1);
       const rightEdge = canvasW - margin;
       this.buttons = [
         {
-          x: rightEdge - btnW * 3 - margin * 2,
+          x: rightEdge - btnW * 3 - langBtnW - margin * 3,
           y: btnY,
           w: btnW,
           h: btnH,
           action: { type: 'rollDice' },
-          label: 'ROLL',
+          label: loc.btnRoll,
           visible: (s) => s.phase === 'waitingForRoll' && s.currentPlayer === 'white',
         },
         {
-          x: rightEdge - btnW * 2 - margin,
+          x: rightEdge - btnW * 2 - langBtnW - margin * 2,
           y: btnY,
           w: btnW,
           h: btnH,
           action: { type: 'newGame' },
-          label: 'New Game',
+          label: loc.btnNewGame,
           visible: (_) => true,
         },
         {
-          x: rightEdge - btnW,
+          x: rightEdge - btnW - langBtnW - margin,
           y: btnY,
           w: btnW,
           h: btnH,
           action: { type: 'clearSave' },
-          label: 'Clear Save',
+          label: loc.btnClearSave,
+          visible: (_) => true,
+        },
+        {
+          x: rightEdge - langBtnW,
+          y: btnY,
+          w: langBtnW,
+          h: btnH,
+          action: { type: 'toggleLang' },
+          label: loc.btnLang,
           visible: (_) => true,
         },
       ];

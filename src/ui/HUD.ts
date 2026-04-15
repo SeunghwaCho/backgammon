@@ -3,6 +3,7 @@
 
 import { GameState, Player } from '../game/Types.js';
 import { ButtonArea } from '../input/InputController.js';
+import { t } from '../i18n/Locale.js';
 
 const BUTTON_COLORS = {
   roll: { bg: '#3d8b3d', hover: '#4da84d', text: '#ffffff', border: '#2a5f2a' },
@@ -135,19 +136,21 @@ export function renderRestorePrompt(
   drawRoundRect(ctx, x, y, boxW, boxH, 10);
   ctx.stroke();
 
+  const loc = t();
+
   // Title
   const titleFont = Math.max(14, 18 * fontScale);
   ctx.font = `bold ${titleFont}px sans-serif`;
   ctx.fillStyle = '#ffe066';
   ctx.textAlign = 'center';
-  ctx.fillText('Saved Game Found', canvasW / 2, y + 30 * fontScale);
+  ctx.fillText(loc.savedGameFound, canvasW / 2, y + 30 * fontScale);
 
   const d = new Date(saveTime);
   const timeStr = d.toLocaleString();
   const infoFont = Math.max(10, 12 * fontScale);
   ctx.font = `${infoFont}px sans-serif`;
   ctx.fillStyle = '#aacccc';
-  ctx.fillText(`Last saved: ${timeStr}`, canvasW / 2, y + 55 * fontScale);
+  ctx.fillText(`${loc.lastSaved}: ${timeStr}`, canvasW / 2, y + 55 * fontScale);
 
   const btnW = boxW * 0.38;
   const btnH = Math.min(36, boxH * 0.22);
@@ -159,7 +162,7 @@ export function renderRestorePrompt(
     w: btnW,
     h: btnH,
     action: { type: 'continueGame' },
-    label: 'Continue',
+    label: loc.btnContinue,
     visible: () => true,
   };
 
@@ -169,7 +172,7 @@ export function renderRestorePrompt(
     w: btnW,
     h: btnH,
     action: { type: 'newGame' },
-    label: 'New Game',
+    label: loc.btnNewGamePrompt,
     visible: () => true,
   };
 
