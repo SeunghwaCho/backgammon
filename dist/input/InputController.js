@@ -32,14 +32,14 @@ export class InputController {
             return;
         const hudY = layout.hudY;
         const hudH = layout.hudH;
-        // Button height: at least 36px for touch targets, max 40px.
-        const btnH = Math.max(36, Math.min(40, hudH * 0.7));
+        // Button height: at least 46px to fit emoji + text two-line layout.
+        const btnH = Math.max(46, Math.min(54, hudH * 0.82));
         const btnY = hudY + (hudH - btnH) / 2;
         const margin = 6;
         const loc = t();
         if (layout.isPortrait) {
             // Portrait (Fold 7 folded): 4 equal buttons across full width
-            const totalMargin = margin * 5; // left + between*3 + right
+            const totalMargin = margin * 5;
             const btnW = Math.floor((canvasW - totalMargin) / 4);
             this.buttons = [
                 {
@@ -48,7 +48,9 @@ export class InputController {
                     w: btnW,
                     h: btnH,
                     action: { type: 'rollDice' },
-                    label: loc.btnRollShort,
+                    label: loc.btnRoll,
+                    emoji: loc.btnRollEmoji,
+                    text: loc.btnRollText,
                     visible: (s) => s.phase === 'waitingForRoll' && s.currentPlayer === 'white',
                 },
                 {
@@ -57,7 +59,9 @@ export class InputController {
                     w: btnW,
                     h: btnH,
                     action: { type: 'newGame' },
-                    label: loc.btnNewGameShort,
+                    label: loc.btnNewGame,
+                    emoji: loc.btnNewGameEmoji,
+                    text: loc.btnNewGameText,
                     visible: (_) => true,
                 },
                 {
@@ -66,7 +70,9 @@ export class InputController {
                     w: btnW,
                     h: btnH,
                     action: { type: 'clearSave' },
-                    label: loc.btnClearSaveShort,
+                    label: loc.btnClearSave,
+                    emoji: loc.btnClearSaveEmoji,
+                    text: loc.btnClearSaveText,
                     visible: (_) => true,
                 },
                 {
@@ -76,14 +82,16 @@ export class InputController {
                     h: btnH,
                     action: { type: 'toggleLang' },
                     label: loc.btnLang,
+                    emoji: loc.btnLangEmoji,
+                    text: loc.btnLangText,
                     visible: (_) => true,
                 },
             ];
         }
         else {
             // Landscape (Fold 7 unfolded / desktop): buttons on the right side
-            const btnW = Math.min(95, canvasW * 0.16);
-            const langBtnW = Math.min(70, canvasW * 0.1);
+            const btnW = Math.min(88, canvasW * 0.14);
+            const langBtnW = Math.min(72, canvasW * 0.1);
             const rightEdge = canvasW - margin;
             this.buttons = [
                 {
@@ -93,6 +101,8 @@ export class InputController {
                     h: btnH,
                     action: { type: 'rollDice' },
                     label: loc.btnRoll,
+                    emoji: loc.btnRollEmoji,
+                    text: loc.btnRollText,
                     visible: (s) => s.phase === 'waitingForRoll' && s.currentPlayer === 'white',
                 },
                 {
@@ -102,6 +112,8 @@ export class InputController {
                     h: btnH,
                     action: { type: 'newGame' },
                     label: loc.btnNewGame,
+                    emoji: loc.btnNewGameEmoji,
+                    text: loc.btnNewGameText,
                     visible: (_) => true,
                 },
                 {
@@ -111,6 +123,8 @@ export class InputController {
                     h: btnH,
                     action: { type: 'clearSave' },
                     label: loc.btnClearSave,
+                    emoji: loc.btnClearSaveEmoji,
+                    text: loc.btnClearSaveText,
                     visible: (_) => true,
                 },
                 {
@@ -120,6 +134,8 @@ export class InputController {
                     h: btnH,
                     action: { type: 'toggleLang' },
                     label: loc.btnLang,
+                    emoji: loc.btnLangEmoji,
+                    text: loc.btnLangText,
                     visible: (_) => true,
                 },
             ];

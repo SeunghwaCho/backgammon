@@ -15,14 +15,23 @@ export interface LocaleStrings {
   diceLabel: string;
   savedAt: string;
 
-  // Buttons (full & short for portrait)
+  // Buttons — each has an emoji (rendered large) + short text (rendered small)
+  btnRollEmoji: string;
+  btnRollText: string;
+  btnNewGameEmoji: string;
+  btnNewGameText: string;
+  btnClearSaveEmoji: string;
+  btnClearSaveText: string;
+  btnLangEmoji: string;
+  btnLangText: string;
+  // legacy / fallback full labels
   btnRoll: string;
   btnRollShort: string;
   btnNewGame: string;
   btnNewGameShort: string;
   btnClearSave: string;
   btnClearSaveShort: string;
-  btnLang: string;      // shown as the current lang; tap to switch
+  btnLang: string;
 
   // Win screen
   newGameHint: string;
@@ -31,6 +40,7 @@ export interface LocaleStrings {
   savedGameFound: string;
   lastSaved: string;
   btnContinue: string;
+  btnContinueText: string;  // text-only part (no emoji)
   btnNewGamePrompt: string;
 
   // Bear-off area labels
@@ -58,6 +68,14 @@ const KO: LocaleStrings = {
   diceLabel: '주사위',
   savedAt: '저장됨',
 
+  btnRollEmoji: '🎲',
+  btnRollText: '굴리기',
+  btnNewGameEmoji: '🔄',
+  btnNewGameText: '새 게임',
+  btnClearSaveEmoji: '🗑️',
+  btnClearSaveText: '삭제',
+  btnLangEmoji: '🌐',
+  btnLangText: 'EN',
   btnRoll: '🎲 굴리기',
   btnRollShort: '🎲',
   btnNewGame: '🔄 새 게임',
@@ -71,6 +89,7 @@ const KO: LocaleStrings = {
   savedGameFound: '💾 저장된 게임이 있습니다',
   lastSaved: '마지막 저장',
   btnContinue: '▶️ 이어하기',
+  btnContinueText: '이어하기',
   btnNewGamePrompt: '🔄 새 게임',
 
   labelWhite: '흰색',
@@ -96,6 +115,14 @@ const EN: LocaleStrings = {
   diceLabel: 'Dice',
   savedAt: 'Saved',
 
+  btnRollEmoji: '🎲',
+  btnRollText: 'Roll',
+  btnNewGameEmoji: '🔄',
+  btnNewGameText: 'New',
+  btnClearSaveEmoji: '🗑️',
+  btnClearSaveText: 'Clear',
+  btnLangEmoji: '🌐',
+  btnLangText: '한국어',
   btnRoll: '🎲 Roll',
   btnRollShort: '🎲',
   btnNewGame: '🔄 New Game',
@@ -109,6 +136,7 @@ const EN: LocaleStrings = {
   savedGameFound: '💾 Saved Game Found',
   lastSaved: 'Last saved',
   btnContinue: '▶️ Continue',
+  btnContinueText: 'Continue',
   btnNewGamePrompt: '🔄 New Game',
 
   labelWhite: 'White',

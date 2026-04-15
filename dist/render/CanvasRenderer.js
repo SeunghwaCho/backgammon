@@ -49,9 +49,8 @@ export class CanvasRenderer {
     }
     computeLayout() {
         const isPortrait = this.width < 600;
-        // HUD height: at least 52px so buttons are always tappable.
-        // Use 13% of height but clamp between 52 and 80px.
-        const hudH = Math.max(52, Math.min(80, this.height * 0.13));
+        // HUD height: at least 60px to fit emoji + text two-line buttons.
+        const hudH = Math.max(60, Math.min(72, this.height * 0.10));
         if (isPortrait) {
             return this.computePortraitLayout(hudH);
         }

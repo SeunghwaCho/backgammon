@@ -34,13 +34,30 @@ export function renderButtons(ctx, buttons, state, fontScale) {
         ctx.fillStyle = 'rgba(255,255,255,0.15)';
         drawRoundRect(ctx, btn.x + 1, btn.y + 1, btn.w - 2, btn.h / 2 - 1, 4);
         ctx.fill();
-        // Button label
-        const fontSize = Math.max(10, 12 * fontScale);
-        ctx.font = `bold ${fontSize}px sans-serif`;
+        // Button label: emoji (large) on top half, short text (small) on bottom half
+        const cx = btn.x + btn.w / 2;
         ctx.fillStyle = colors.text;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2);
+        if (btn.emoji && btn.text) {
+            // Two-line layout
+            const emojiSize = Math.max(16, Math.min(22, btn.h * 0.48));
+            const textSize = Math.max(9, Math.min(12, btn.h * 0.27));
+            // vertical split: emoji center at 38% from top, text center at 78%
+            const emojiY = btn.y + btn.h * 0.40;
+            const textY = btn.y + btn.h * 0.80;
+            ctx.font = `${emojiSize}px sans-serif`;
+            ctx.textBaseline = 'middle';
+            ctx.fillText(btn.emoji, cx, emojiY);
+            ctx.font = `bold ${textSize}px sans-serif`;
+            ctx.fillText(btn.text, cx, textY);
+        }
+        else {
+            // Fallback single-line
+            const fontSize = Math.max(11, Math.min(14, btn.h * 0.35));
+            ctx.font = `bold ${fontSize}px sans-serif`;
+            ctx.textBaseline = 'middle';
+            ctx.fillText(btn.label, cx, btn.y + btn.h / 2);
+        }
         ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';
     }
@@ -114,8 +131,8 @@ export function renderRestorePrompt(ctx, canvasW, canvasH, saveTime, fontScale) 
     ctx.fillStyle = '#aacccc';
     ctx.fillText(`${loc.lastSaved}: ${timeStr}`, canvasW / 2, y + 55 * fontScale);
     const btnW = boxW * 0.38;
-    const btnH = Math.min(36, boxH * 0.22);
-    const btnY = y + boxH - btnH - 16 * fontScale;
+    const btnH = Math.min(52, boxH * 0.28);
+    const btnY = y + boxH - btnH - 12 * fontScale;
     const continueBtn = {
         x: canvasW / 2 - btnW - 8,
         y: btnY,
@@ -123,6 +140,8 @@ export function renderRestorePrompt(ctx, canvasW, canvasH, saveTime, fontScale) 
         h: btnH,
         action: { type: 'continueGame' },
         label: loc.btnContinue,
+        emoji: '▶️',
+        text: loc.btnContinueText,
         visible: () => true,
     };
     const newGameBtn = {
@@ -132,6 +151,8 @@ export function renderRestorePrompt(ctx, canvasW, canvasH, saveTime, fontScale) 
         h: btnH,
         action: { type: 'newGame' },
         label: loc.btnNewGamePrompt,
+        emoji: '🔄',
+        text: loc.btnNewGameText,
         visible: () => true,
     };
     // Draw buttons
