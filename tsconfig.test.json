@@ -18,6 +18,7 @@
   },
   "include": [
     "src/game/**/*",
+    "src/i18n/Locale.ts",
     "src/persistence/SaveValidation.ts",
     "src/tests/**/*"
   ],

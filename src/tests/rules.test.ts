@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { createInitialBoard, cloneBoard, barIndex } from '../game/GameState.js';
+import { createInitialBoard, cloneBoard, barIndex, createInitialGameState } from '../game/GameState.js';
 import {
   isSingleMoveValid,
   canBearOff,
@@ -8,6 +8,7 @@ import {
   isBlocked,
   isBlot,
   getHomeBoardRange,
+  getPipCount,
 } from '../game/Rules.js';
 import type { Point } from '../game/Types.js';
 
@@ -377,5 +378,63 @@ describe('applySingleMove', () => {
     assert.equal(newBoard[22].owner, 'white');
     assert.equal(newBoard[22].count, 1);
     assert.equal(isHit, false);
+  });
+});
+
+describe('getPipCount', () => {
+  test('white pip count on initial board = 167', () => {
+    // Standard starting position:
+    // 2 × pt24 = 48, 5 × pt13 = 65, 3 × pt8 = 24, 5 × pt6 = 30  → total 167
+    const board = createInitialBoard();
+    assert.equal(getPipCount(board, 'white', 0), 167);
+  });
+
+  test('black pip count on initial board = 167 (symmetric)', () => {
+    // 2 × (25-1)=48, 5 × (25-12)=65, 3 × (25-17)=24, 5 × (25-19)=30 → 167
+    const board = createInitialBoard();
+    assert.equal(getPipCount(board, 'black', 0), 167);
+  });
+
+  test('white pip decreases after moving closer to home', () => {
+    const board = emptyBoard();
+    placeCheckers(board, 10, 'white', 1);
+    const before = getPipCount(board, 'white', 0);
+    const { newBoard } = applySingleMove(board, 'white', 10, 7);
+    const after = getPipCount(newBoard, 'white', 0);
+    assert.equal(before - after, 3); // moved 3 pips closer
+  });
+
+  test('black pip decreases after moving closer to home', () => {
+    const board = emptyBoard();
+    placeCheckers(board, 15, 'black', 1);
+    const before = getPipCount(board, 'black', 0);
+    const { newBoard } = applySingleMove(board, 'black', 15, 18);
+    const after = getPipCount(newBoard, 'black', 0);
+    assert.equal(before - after, 3);
+  });
+
+  test('white checker on bar has pip count of 25', () => {
+    const board = emptyBoard();
+    placeCheckers(board, 0, 'white', 1); // bar
+    assert.equal(getPipCount(board, 'white', 0), 25);
+  });
+
+  test('black checker on bar has pip count of 25', () => {
+    const board = emptyBoard();
+    placeCheckers(board, 25, 'black', 1); // bar
+    assert.equal(getPipCount(board, 'black', 0), 25);
+  });
+
+  test('pip count = 0 when no checkers on board', () => {
+    const board = emptyBoard();
+    assert.equal(getPipCount(board, 'white', 0), 0);
+    assert.equal(getPipCount(board, 'black', 0), 0);
+  });
+
+  test('pip count unaffected by borne-off count parameter', () => {
+    // getPipCount only counts checkers ON the board; borneOff param not used
+    const board = emptyBoard();
+    placeCheckers(board, 5, 'white', 2);
+    assert.equal(getPipCount(board, 'white', 0), getPipCount(board, 'white', 5));
   });
 });

@@ -6,6 +6,7 @@ import {
   getMovesFromPoint,
   filterSequencesAfterMove,
 } from '../game/MoveGenerator.js';
+import { createInitialBoard } from '../game/GameState.js';
 import type { Point, DiceState, Move } from '../game/Types.js';
 
 /** Helpers */
@@ -386,5 +387,71 @@ describe('edge cases', () => {
     const keys = seqs.map(seq => seq.map(m => `${m.from}>${m.to}`).join(','));
     const uniqueKeys = new Set(keys);
     assert.equal(keys.length, uniqueKeys.size, 'No duplicate sequences');
+  });
+});
+
+describe('generateAllLegalSequences - initial board positions', () => {
+  test('white with dice 3,1: all sequences use both dice', () => {
+    const board = createInitialBoard();
+    const seqs = generateAllLegalSequences(board, 'white', makeDice(3, 1), 0);
+    assert.ok(seqs.length > 0, 'should have legal moves');
+    const maxLen = Math.max(...seqs.map(s => s.length));
+    assert.equal(maxLen, 2, 'both dice should be usable');
+    for (const seq of seqs) {
+      assert.equal(seq.length, 2);
+    }
+  });
+
+  test('white doubles 6,6 on initial board: all 4 dice used', () => {
+    const board = createInitialBoard();
+    const seqs = generateAllLegalSequences(board, 'white', makeDice(6, 6), 0);
+    assert.ok(seqs.length > 0);
+    const maxLen = Math.max(...seqs.map(s => s.length));
+    assert.equal(maxLen, 4, 'doubles should allow 4 moves');
+  });
+
+  test('black with dice 4,2 on initial board: all sequences use both dice', () => {
+    const board = createInitialBoard();
+    const seqs = generateAllLegalSequences(board, 'black', makeDice(4, 2), 0);
+    assert.ok(seqs.length > 0);
+    for (const seq of seqs) {
+      assert.equal(seq.length, 2);
+    }
+  });
+
+  test('all white moves go in decreasing direction (toward point 1)', () => {
+    const board = createInitialBoard();
+    const seqs = generateAllLegalSequences(board, 'white', makeDice(3, 5), 0);
+    for (const seq of seqs) {
+      for (const move of seq) {
+        if (move.to !== -1 && move.from !== 0) {
+          assert.ok(move.to < move.from, `white move should decrease: ${move.from}->${move.to}`);
+        }
+      }
+    }
+  });
+
+  test('all black moves go in increasing direction (toward point 24)', () => {
+    const board = createInitialBoard();
+    const seqs = generateAllLegalSequences(board, 'black', makeDice(3, 5), 0);
+    for (const seq of seqs) {
+      for (const move of seq) {
+        if (move.to !== 26 && move.from !== 25) {
+          assert.ok(move.to > move.from, `black move should increase: ${move.from}->${move.to}`);
+        }
+      }
+    }
+  });
+
+  test('no sequence starts from a point the player does not own', () => {
+    const board = createInitialBoard();
+    // White owns: 6, 8, 13, 24
+    const whitePoints = new Set([6, 8, 13, 24]);
+    const seqs = generateAllLegalSequences(board, 'white', makeDice(2, 4), 0);
+    for (const seq of seqs) {
+      if (seq.length > 0) {
+        assert.ok(whitePoints.has(seq[0].from), `First move source ${seq[0].from} should be a white point`);
+      }
+    }
   });
 });
