@@ -38,15 +38,16 @@ export function createInitialGameState(): GameState {
     board: createInitialBoard(),
     whiteBorneOff: 0,
     blackBorneOff: 0,
-    currentPlayer: 'white', // white goes first (can be randomized)
+    currentPlayer: 'white',
     dice: null,
-    phase: 'waitingForRoll',
+    phase: 'rollingForFirst',
     selectedPoint: null,
     validMoves: [],
     legalSequences: [],
     winner: null,
     lastSaveTime: null,
     errorMessage: null,
+    initialRoll: null,
   };
 }
 
@@ -70,6 +71,7 @@ export function cloneGameState(state: GameState): GameState {
     winner: state.winner,
     lastSaveTime: state.lastSaveTime,
     errorMessage: state.errorMessage,
+    initialRoll: state.initialRoll ? { ...state.initialRoll } : null,
   };
 }
 

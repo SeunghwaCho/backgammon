@@ -95,7 +95,7 @@ export class InputController {
           label: loc.btnRoll,
           emoji: loc.btnRollEmoji,
           text: loc.btnRollText,
-          visible: (s) => s.phase === 'waitingForRoll' && s.currentPlayer === 'white',
+          visible: (s) => (s.phase === 'waitingForRoll' && s.currentPlayer === 'white') || s.phase === 'rollingForFirst',
         },
         {
           x: margin * 2 + btnW,
@@ -146,7 +146,7 @@ export class InputController {
           label: loc.btnRoll,
           emoji: loc.btnRollEmoji,
           text: loc.btnRollText,
-          visible: (s) => s.phase === 'waitingForRoll' && s.currentPlayer === 'white',
+          visible: (s) => (s.phase === 'waitingForRoll' && s.currentPlayer === 'white') || s.phase === 'rollingForFirst',
         },
         {
           x: rightEdge - btnW * 2 - langBtnW - margin * 2,

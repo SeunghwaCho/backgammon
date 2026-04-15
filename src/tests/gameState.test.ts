@@ -79,9 +79,9 @@ describe('createInitialBoard', () => {
 });
 
 describe('createInitialGameState', () => {
-  test('starts in waitingForRoll phase', () => {
+  test('starts in rollingForFirst phase (to determine first player)', () => {
     const state = createInitialGameState();
-    assert.equal(state.phase, 'waitingForRoll');
+    assert.equal(state.phase, 'rollingForFirst');
   });
 
   test('no dice at start', () => {

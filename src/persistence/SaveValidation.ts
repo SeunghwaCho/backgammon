@@ -118,7 +118,7 @@ function validateGameState(gs: Record<string, unknown>, errors: string[]): void 
 
   // Phase
   const validPhases: GamePhase[] = [
-    'waitingForRoll', 'playerActing', 'aiThinking', 'gameOver',
+    'rollingForFirst', 'waitingForRoll', 'playerActing', 'aiThinking', 'gameOver',
   ];
   if (!validPhases.includes(gs.phase as GamePhase)) {
     err(errors, `phase invalid: ${gs.phase}`);

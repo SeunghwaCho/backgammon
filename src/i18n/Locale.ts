@@ -59,6 +59,13 @@ export interface LocaleStrings {
   confirmClearSaveTitle: string;
   confirmClearSaveBody: string;
 
+  // Initial roll to determine first player
+  rollForFirstTitle: string;
+  rollForFirstPrompt: string;
+  rollForFirstTie: string;
+  rollForFirstWhiteFirst: string;
+  rollForFirstBlackFirst: string;
+
   // Error / info messages
   errCannotMove: string;
   errInvalidMove: string;
@@ -115,6 +122,12 @@ const KO: LocaleStrings = {
   confirmClearSaveTitle: '저장 데이터 삭제',
   confirmClearSaveBody: '저장된 게임 데이터가 삭제됩니다.\n정말 삭제하시겠습니까?',
 
+  rollForFirstTitle: '선공 결정',
+  rollForFirstPrompt: '🎲 굴려서 선공을 결정하세요',
+  rollForFirstTie: '무승부! 다시 굴리세요 🎲',
+  rollForFirstWhiteFirst: '🎉 흰색 선공!',
+  rollForFirstBlackFirst: '🎉 검정 선공!',
+
   errCannotMove: '그 곳으로 이동할 수 없습니다.',
   errInvalidMove: '잘못된 이동입니다.',
   msgSaveCleared: '저장 데이터가 삭제되었습니다.',
@@ -169,6 +182,12 @@ const EN: LocaleStrings = {
 
   confirmClearSaveTitle: 'Delete Save Data',
   confirmClearSaveBody: 'Saved game data will be deleted.\nAre you sure?',
+
+  rollForFirstTitle: 'First Player',
+  rollForFirstPrompt: '🎲 Roll to determine who goes first',
+  rollForFirstTie: 'Tie! Roll again 🎲',
+  rollForFirstWhiteFirst: '🎉 White goes first!',
+  rollForFirstBlackFirst: '🎉 Black goes first!',
 
   errCannotMove: 'Cannot move there.',
   errInvalidMove: 'Invalid move.',

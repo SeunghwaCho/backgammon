@@ -5,6 +5,7 @@ import { GameState, Move, SaveData } from './game/Types.js';
 import { cloneGameState } from './game/GameState.js';
 import {
   rollDice as reducerRollDice,
+  rollForFirst as reducerRollForFirst,
   selectPoint as reducerSelectPoint,
   applyPlayerMove,
   applyMoveInternal,
@@ -155,7 +156,7 @@ async function tryLoadSavedGame(): Promise<void> {
     startupPhase = 'promptRestore';
     render();
   } else {
-    // Start fresh
+    // Start fresh — game begins in rollingForFirst, no AI scheduling needed
     startupPhase = 'playing';
     gameState = startNewGame();
     autoSave();
@@ -214,7 +215,11 @@ function handleAction(action: InputAction): void {
 
   switch (action.type) {
     case 'rollDice':
-      handleRollDice();
+      if (gameState.phase === 'rollingForFirst') {
+        handleRollForFirst();
+      } else {
+        handleRollDice();
+      }
       break;
 
     case 'selectPoint':
@@ -250,6 +255,29 @@ function handleAction(action: InputAction): void {
       toggleLang();
       break;
   }
+}
+
+function handleRollForFirst(): void {
+  if (gameState.phase !== 'rollingForFirst') return;
+
+  const [wRoll, bRoll] = rollTwoDice();
+  gameState = reducerRollForFirst(gameState, wRoll, bRoll);
+  render();
+
+  if (wRoll !== bRoll) {
+    // Winner determined — show result briefly, then transition to actual play
+    setTimeout(() => {
+      gameState = cloneGameState(gameState);
+      gameState.phase = 'waitingForRoll';
+      gameState.initialRoll = null;
+      autoSave();
+      render();
+      if (gameState.currentPlayer === 'black') {
+        scheduleAITurn();
+      }
+    }, 1500);
+  }
+  // Tie: phase stays rollingForFirst; user clicks Roll again to re-roll
 }
 
 function handleRollDice(): void {
@@ -360,14 +388,10 @@ function handleNewGame(): void {
   if (aiInProgress) {
     aiInProgress = false; // Cancel AI turn
   }
-  gameState = startNewGame();
+  gameState = startNewGame(); // starts in rollingForFirst phase
   autoSave();
   render();
-
-  // If AI goes first
-  if (gameState.currentPlayer === 'black') {
-    scheduleAITurn();
-  }
+  // No AI scheduling here — first player is determined by initial roll
 }
 
 async function handleClearSave(): Promise<void> {
@@ -513,6 +537,7 @@ function loadSavedGame(): void {
       winner: gs.winner,
       lastSaveTime: savedData.timestamp,
       errorMessage: null,
+      initialRoll: null,
     };
 
     // Restore using reducer (re-generates legal sequences)
@@ -651,10 +676,9 @@ function handleStartupClick(x: number, y: number): void {
     y >= newGameBtn.y && y <= newGameBtn.y + newGameBtn.h
   ) {
     startupPhase = 'playing';
-    gameState = startNewGame();
+    gameState = startNewGame(); // starts in rollingForFirst
     autoSave();
     render();
-    if (gameState.currentPlayer === 'black') scheduleAITurn();
     return;
   }
 }

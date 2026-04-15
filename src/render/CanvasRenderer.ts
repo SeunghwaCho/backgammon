@@ -387,6 +387,10 @@ export class CanvasRenderer {
     if (state.phase === 'gameOver' && state.winner) {
       this.renderWinScreen(state.winner);
     }
+
+    if (state.phase === 'rollingForFirst' && state.initialRoll) {
+      this.renderInitialRollDice(state.initialRoll, state.currentPlayer);
+    }
   }
 
   private renderLandscape(state: GameState): void {
@@ -968,8 +972,17 @@ export class CanvasRenderer {
     ctx.fillStyle = playerColor;
     const playerName = state.currentPlayer === 'white' ? loc.youTurn : loc.aiTurn;
     let statusMsg = '';
-    if (state.phase === 'waitingForRoll')  statusMsg = `${playerName}: ${loc.clickRoll}`;
-    else if (state.phase === 'playerActing') statusMsg = `${playerName}: ${loc.selectPiece}`;
+    if (state.phase === 'rollingForFirst') {
+      ctx.fillStyle = '#aaccff';
+      if (!state.initialRoll) {
+        statusMsg = loc.rollForFirstPrompt;
+      } else if (state.initialRoll.white === state.initialRoll.black) {
+        statusMsg = loc.rollForFirstTie;
+      } else {
+        statusMsg = state.currentPlayer === 'white' ? loc.rollForFirstWhiteFirst : loc.rollForFirstBlackFirst;
+      }
+    } else if (state.phase === 'waitingForRoll')  { statusMsg = `${playerName}: ${loc.clickRoll}`; }
+    else if (state.phase === 'playerActing') { statusMsg = `${playerName}: ${loc.selectPiece}`; }
     else if (state.phase === 'aiThinking')  { ctx.fillStyle = '#aaaacc'; statusMsg = loc.aiThinking; }
     else if (state.phase === 'gameOver')    { ctx.fillStyle = COLORS.winText; statusMsg = state.winner === 'white' ? loc.youWin : loc.aiWins; }
     ctx.fillText(statusMsg, 8, msgCY);
@@ -1025,6 +1038,63 @@ export class CanvasRenderer {
     ctx.fillText(loc.newGameHint, cx, cy + 20);
 
     ctx.textAlign = 'left';
+  }
+
+  // Draw initial roll result: two dice side by side with player labels
+  private renderInitialRollDice(
+    initialRoll: { white: number; black: number },
+    winner: 'white' | 'black'
+  ): void {
+    if (!this.layout) return;
+    const l = this.layout;
+    const ctx = this.ctx;
+
+    const isTie = initialRoll.white === initialRoll.black;
+    const diceSize = Math.min(64, l.checkerR * 3.2, 80) * l.fontScale;
+    const gap = diceSize * 0.4;
+    const totalW = diceSize * 2 + gap;
+    const cx = this.width / 2;
+
+    // Center vertically in the board area
+    const diceY = l.boardY + l.boardH / 2 - diceSize / 2;
+    const whiteX = cx - totalW / 2;
+    const blackX = cx + gap / 2 + diceSize;
+
+    // Dim overlay behind dice to make them pop
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    const padH = diceSize * 0.5;
+    const padV = diceSize * 0.55;
+    roundRect(ctx, cx - totalW / 2 - padH, diceY - padV, totalW + padH * 2, diceSize + padV * 2, 12);
+    ctx.fill();
+
+    // Draw dice — white die on left, black die on right
+    const isWhiteWinner = !isTie && winner === 'white';
+    const isBlackWinner = !isTie && winner === 'black';
+    ctx.globalAlpha = isTie || isWhiteWinner ? 1.0 : 0.5;
+    this.drawDie(whiteX, diceY, diceSize, initialRoll.white, true, false);
+    ctx.globalAlpha = isTie || isBlackWinner ? 1.0 : 0.5;
+    this.drawDie(blackX, diceY, diceSize, initialRoll.black, false, false);
+    ctx.globalAlpha = 1.0;
+
+    // "VS" label between dice
+    const labelFont = Math.max(10, 12 * l.fontScale);
+    ctx.font = `bold ${labelFont}px sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('VS', cx, diceY + diceSize / 2);
+
+    // Player labels below dice
+    const nameFont = Math.max(9, 11 * l.fontScale);
+    ctx.font = `${nameFont}px sans-serif`;
+    const loc = t();
+    ctx.fillStyle = isTie || isWhiteWinner ? '#f5f0e8' : 'rgba(245,240,232,0.4)';
+    ctx.fillText(loc.labelWhite, whiteX + diceSize / 2, diceY + diceSize + diceSize * 0.3);
+    ctx.fillStyle = isTie || isBlackWinner ? '#aaaaff' : 'rgba(170,170,255,0.4)';
+    ctx.fillText(loc.labelBlack, blackX + diceSize / 2, diceY + diceSize + diceSize * 0.3);
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
   }
 
   // Highlight valid target points with a glow effect

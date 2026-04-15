@@ -4,7 +4,7 @@
 // BLACK moves from 1 -> 24 (bears off at > 24, i.e., off the board)
 
 export type Player = 'white' | 'black';
-export type GamePhase = 'waitingForRoll' | 'playerActing' | 'aiThinking' | 'gameOver';
+export type GamePhase = 'rollingForFirst' | 'waitingForRoll' | 'playerActing' | 'aiThinking' | 'gameOver';
 
 export interface Point {
   owner: Player | null;
@@ -43,6 +43,8 @@ export interface GameState {
   winner: Player | null;
   lastSaveTime: number | null;
   errorMessage: string | null;
+  // Initial roll to determine first player (only set during rollingForFirst phase)
+  initialRoll: { white: number; black: number } | null;
 }
 
 // Serialized save format
