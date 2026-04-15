@@ -92,23 +92,29 @@ export class CanvasRenderer {
 
   /**
    * Queue a checker-in-flight animation from pointIndex `fromIdx` to `toIdx`.
-   * Also queues a hit-burst effect at `toIdx` when `isHit` is true.
-   * Call this BEFORE applying the state change so the source position is valid.
+   * When `isHit` is true also queues:
+   *   - a hit-burst at the impact point (timed to attacker arrival)
+   *   - the captured piece flying from the impact point to its own bar
+   * Call this BEFORE applying the state change so source coords are valid.
+   * Returns the recommended delay (ms) the caller should wait before
+   * starting the next move, so hit sequences have enough time to complete.
    */
   queueMoveAnim(
     fromIdx: number,
     toIdx:   number,
     player:  Player,
     isHit:   boolean
-  ): void {
-    if (!this.layout) return;
+  ): number {
+    const defaultDelay = ANIM_MOVE_MS + 70;
+    if (!this.layout) return defaultDelay;
     const fromPos = this.getAnimPosition(fromIdx);
     const toPos   = this.getAnimPosition(toIdx);
-    if (!fromPos || !toPos) return;
+    if (!fromPos || !toPos) return defaultDelay;
 
     const now = performance.now();
     const r   = this.layout.checkerR;
 
+    // 1. Attacker slides from→to
     this.animSystem.queue({
       kind:      'move',
       fromX: fromPos.x, fromY: fromPos.y,
@@ -118,32 +124,75 @@ export class CanvasRenderer {
       duration:  ANIM_MOVE_MS,
     });
 
-    if (isHit) {
+    if (!isHit) return defaultDelay;
+
+    // 2. Impact burst — starts as attacker approaches the destination
+    const impactDelay = ANIM_MOVE_MS * 0.80;
+    this.animSystem.queue({
+      kind:      'hitBurst',
+      x: toPos.x, y: toPos.y,
+      r,
+      startTime: now + impactDelay,
+      duration:  ANIM_HIT_MS,
+    });
+
+    // 3. Captured piece flies from impact point to its bar
+    const captured: Player = player === 'white' ? 'black' : 'white';
+    const capturedBarIdx   = captured === 'white' ? 0 : 25;
+    const barPos = this.getAnimPosition(capturedBarIdx);
+    if (barPos) {
+      const captureDur = Math.round(ANIM_MOVE_MS * 0.85);
       this.animSystem.queue({
-        kind:      'hitBurst',
-        x: toPos.x, y: toPos.y,
+        kind:      'move',
+        fromX: toPos.x, fromY: toPos.y,
+        toX:   barPos.x, toY:   barPos.y,
+        player: captured,
         r,
-        startTime: now + 120, // small delay so burst starts mid-flight
-        duration:  ANIM_HIT_MS,
+        startTime: now + impactDelay,
+        duration:  captureDur,
       });
+      // Wait until the captured piece fully arrives
+      return Math.round(impactDelay + captureDur) + 80;
     }
+
+    return defaultDelay;
   }
 
   /**
-   * Queue a standalone hit-burst effect at a board point.
+   * Queue a hit-burst + captured-piece-to-bar animation.
    * Used when the human player captures an AI piece.
+   * `capturedPlayer` is the player whose piece was just taken.
    */
-  queueHitBurst(pointIdx: number): void {
+  queueHitBurst(toIdx: number, capturedPlayer: Player): void {
     if (!this.layout) return;
-    const pos = this.getAnimPosition(pointIdx);
+    const pos = this.getAnimPosition(toIdx);
     if (!pos) return;
+    const r   = this.layout.checkerR;
+    const now = performance.now();
+
+    // Burst at capture point
     this.animSystem.queue({
       kind:      'hitBurst',
       x: pos.x, y: pos.y,
-      r:         this.layout.checkerR,
-      startTime: performance.now(),
+      r,
+      startTime: now,
       duration:  ANIM_HIT_MS,
     });
+
+    // Captured piece flies to its bar
+    const barIdx = capturedPlayer === 'white' ? 0 : 25;
+    const barPos = this.getAnimPosition(barIdx);
+    if (barPos) {
+      this.animSystem.queue({
+        kind:      'move',
+        fromX: pos.x, fromY: pos.y,
+        toX:   barPos.x, toY:   barPos.y,
+        player: capturedPlayer,
+        r,
+        startTime: now,
+        duration:  ANIM_MOVE_MS,
+      });
+    }
   }
 
   /** Canvas position for a given point index, bar, or bear-off. */

@@ -1,7 +1,7 @@
 // main.ts: Application entry point
 // Wires together all modules: game logic, rendering, input, AI, persistence
 
-import { GameState, Move, SaveData } from './game/Types.js';
+import { GameState, Move, Player, SaveData } from './game/Types.js';
 import { cloneGameState } from './game/GameState.js';
 import {
   rollDice as reducerRollDice,
@@ -375,9 +375,11 @@ function handleMakeMove(move: Move): void {
 
   autoSave();
 
-  // Hit effect when the human player captures an AI checker
+  // Hit effect when the human player captures an AI checker:
+  // burst + captured piece flying to bar
   if (move.isHit) {
-    renderer.queueHitBurst(move.to);
+    const captured: Player = gameState.currentPlayer === 'white' ? 'black' : 'white';
+    renderer.queueHitBurst(move.to, captured);
     startAnimLoop();
   }
 
@@ -468,8 +470,12 @@ async function runAITurn(): Promise<void> {
 
     const move = bestSeq[0];
 
-    // Queue animation before applying the state change so source coords are valid
-    renderer.queueMoveAnim(move.from, move.to, gameState.currentPlayer, move.isHit);
+    // Queue animation before applying the state change so source coords are valid.
+    // Returns the recommended delay that covers the full sequence (including
+    // captured-piece flight when isHit is true).
+    const moveDelay = renderer.queueMoveAnim(
+      move.from, move.to, gameState.currentPlayer, move.isHit
+    );
 
     gameState = applyMoveInternal(gameState, move);
     autoSave();
@@ -482,8 +488,8 @@ async function runAITurn(): Promise<void> {
       return;
     }
 
-    // Wait long enough for the animation to finish before showing the next move
-    await delay(ANIM_MOVE_MS + 70);
+    // Wait long enough for the full animation sequence to finish
+    await delay(moveDelay);
   }
 
   // AI turn complete
