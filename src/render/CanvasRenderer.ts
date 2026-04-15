@@ -48,9 +48,15 @@ export interface RendererLayout {
   barW: number;
   // Checker radius
   checkerR: number;
-  // HUD area
+  // HUD: total area
   hudY: number;
   hudH: number;
+  // HUD: message row (top) — status text, dice info, save, error
+  msgY: number;
+  msgH: number;
+  // HUD: button row (bottom) — action buttons
+  btnAreaY: number;
+  btnAreaH: number;
   // Bear-off areas
   whiteBearOffX: number;
   blackBearOffX: number;
@@ -86,52 +92,44 @@ export class CanvasRenderer {
 
   private computeLayout(): RendererLayout {
     const isPortrait = this.width < 600;
-    // HUD height: at least 60px to fit emoji + text two-line buttons.
-    const hudH = Math.max(60, Math.min(72, this.height * 0.10));
+    // HUD = message row (28px) + button row (52px) = 80px total
+    const msgH    = 28;
+    const btnAreaH = Math.max(52, Math.min(58, this.height * 0.08));
+    const hudH    = msgH + btnAreaH;
 
     if (isPortrait) {
-      return this.computePortraitLayout(hudH);
+      return this.computePortraitLayout(hudH, msgH, btnAreaH);
     } else {
-      return this.computeLandscapeLayout(hudH);
+      return this.computeLandscapeLayout(hudH, msgH, btnAreaH);
     }
   }
 
-  private computeLandscapeLayout(hudH: number): RendererLayout {
+  private computeLandscapeLayout(hudH: number, msgH: number, btnAreaH: number): RendererLayout {
     const w = this.width;
     const h = this.height;
     const fontScale = Math.min(w / 800, h / 500);
 
-    // Reserve hudH at the bottom + a small gap so nothing spills under the HUD.
     const boardH = h - hudH - 6;
     const boardY = 4;
 
-    // Bear-off areas on left and right sides
     const bearOffW = Math.min(50, w * 0.055);
     const boardX = bearOffW + 4;
     const boardW = w - bearOffW * 2 - 8;
 
-    // 12 points per side + bar in middle
     const barW = Math.max(30, boardW * 0.04);
     const pointW = (boardW - barW) / 12;
     const pointH = boardH * 0.42;
     const checkerR = Math.min(pointW * 0.44, pointH / 5.5);
 
     const barX = boardX + pointW * 6;
-    // HUD starts right after the board area.
     const hudY = boardY + boardH + 2;
 
     return {
-      boardX,
-      boardY,
-      boardW,
-      boardH,
-      pointW,
-      pointH,
-      barX,
-      barW,
-      checkerR,
-      hudY,
-      hudH,
+      boardX, boardY, boardW, boardH,
+      pointW, pointH, barX, barW, checkerR,
+      hudY, hudH,
+      msgY: hudY, msgH,
+      btnAreaY: hudY + msgH, btnAreaH,
       whiteBearOffX: 0,
       blackBearOffX: w - bearOffW,
       bearOffW,
@@ -140,46 +138,35 @@ export class CanvasRenderer {
     };
   }
 
-  private computePortraitLayout(hudH: number): RendererLayout {
+  private computePortraitLayout(hudH: number, msgH: number, btnAreaH: number): RendererLayout {
     const w = this.width;
     const h = this.height;
     const fontScale = Math.min(w / 390, h / 700);
 
-    // Bear-off strips at the very top and just above the HUD.
     const bearOffH = Math.max(28, Math.min(40, h * 0.04));
-    // HUD is at the bottom; board occupies the space between the top bear-off
-    // strip and the bottom bear-off strip, which sits just above the HUD.
     const hudY = h - hudH;
     const boardY = bearOffH + 4;
-    const boardH = hudY - bearOffH - boardY - 4; // gap between board and HUD
+    const boardH = hudY - bearOffH - boardY - 4;
     const boardX = 4;
     const boardW = w - 8;
 
-    // In portrait: 12 points per row (top row: 13-24, bottom row: 1-12)
     const barH_val = Math.max(14, boardH * 0.025);
     const pointH = (boardH - barH_val) / 2;
     const pointW = boardW / 12;
     const checkerR = Math.min(pointW * 0.44, pointH / 5.5);
 
-    // For portrait, barX/barW used differently - we'll use barW as barH
     const barX = boardX;
-    const barW = boardW; // full width bar in portrait
+    const barW = boardW;
 
     return {
-      boardX,
-      boardY,
-      boardW,
-      boardH,
-      pointW,
-      pointH,
-      barX,
-      barW,
-      checkerR,
-      hudY,
-      hudH,
+      boardX, boardY, boardW, boardH,
+      pointW, pointH, barX, barW, checkerR,
+      hudY, hudH,
+      msgY: hudY, msgH,
+      btnAreaY: hudY + msgH, btnAreaH,
       whiteBearOffX: boardX,
       blackBearOffX: boardX,
-      bearOffW: bearOffH, // used as height in portrait
+      bearOffW: bearOffH,
       isPortrait: true,
       fontScale,
     };
@@ -955,62 +942,60 @@ export class CanvasRenderer {
     const l = this.layout;
     const ctx = this.ctx;
 
-    // HUD background
-    ctx.fillStyle = COLORS.hudBg;
-    ctx.fillRect(0, l.hudY, this.width, l.hudH);
+    // ── Message row (top) ─────────────────────────────────────────────────────
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(0, l.msgY, this.width, l.msgH);
 
-    const fontSize = Math.max(11, 13 * l.fontScale);
-    const smallFont = Math.max(9, 11 * l.fontScale);
-    ctx.textAlign = 'left';
+    const fontSize  = Math.max(11, 13 * l.fontScale);
+    const smallFont = Math.max(9,  11 * l.fontScale);
+    const msgCY = l.msgY + l.msgH / 2;
 
-    let x = 8;
-    const cy = l.hudY + l.hudH / 2;
-
-    // Current player indicator
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    const playerColor = state.currentPlayer === 'white' ? '#f5f0e8' : '#8888cc';
-    ctx.fillStyle = playerColor;
     const loc = t();
+    const playerColor = state.currentPlayer === 'white' ? '#f5f0e8' : '#8888cc';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    // Left: player status
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.fillStyle = playerColor;
     const playerName = state.currentPlayer === 'white' ? loc.youTurn : loc.aiTurn;
+    let statusMsg = '';
+    if (state.phase === 'waitingForRoll')  statusMsg = `${playerName}: ${loc.clickRoll}`;
+    else if (state.phase === 'playerActing') statusMsg = `${playerName}: ${loc.selectPiece}`;
+    else if (state.phase === 'aiThinking')  { ctx.fillStyle = '#aaaacc'; statusMsg = loc.aiThinking; }
+    else if (state.phase === 'gameOver')    { ctx.fillStyle = COLORS.winText; statusMsg = state.winner === 'white' ? loc.youWin : loc.aiWins; }
+    ctx.fillText(statusMsg, 8, msgCY);
 
-    if (state.phase === 'waitingForRoll') {
-      ctx.fillText(`${playerName}: ${loc.clickRoll}`, x, cy - 4);
-    } else if (state.phase === 'playerActing') {
-      ctx.fillText(`${playerName}: ${loc.selectPiece}`, x, cy - 4);
-    } else if (state.phase === 'aiThinking') {
-      ctx.fillStyle = '#aaaacc';
-      ctx.fillText(loc.aiThinking, x, cy - 4);
-    } else if (state.phase === 'gameOver') {
-      ctx.fillStyle = COLORS.winText;
-      ctx.fillText(state.winner === 'white' ? loc.youWin : loc.aiWins, x, cy - 4);
-    }
-
-    // Dice info
-    if (state.dice) {
-      const diceStr = `🎲 ${loc.diceLabel}: [${state.dice.remaining.join(', ')}]`;
-      ctx.font = `${smallFont}px sans-serif`;
-      ctx.fillStyle = COLORS.textDim;
-      ctx.fillText(diceStr, x, cy + 12);
-    }
-
-    // Save status
-    if (state.lastSaveTime) {
-      const saveStr = `💾 ${loc.savedAt} ${formatTime(state.lastSaveTime)}`;
-      ctx.font = `${smallFont}px sans-serif`;
-      ctx.fillStyle = '#558855';
-      ctx.textAlign = 'right';
-      ctx.fillText(saveStr, this.width - 8, l.hudY + l.hudH - 6);
-    }
-
-    // Error message
+    // Right: dice remaining  |  save time  (no overlap with left text)
+    ctx.textAlign = 'right';
     if (state.errorMessage) {
       ctx.font = `${smallFont}px sans-serif`;
       ctx.fillStyle = COLORS.error;
-      ctx.textAlign = 'center';
-      ctx.fillText(state.errorMessage, this.width / 2, l.hudY + l.hudH - 6);
+      ctx.fillText(state.errorMessage, this.width - 8, msgCY);
+    } else if (state.dice) {
+      ctx.font = `${smallFont}px sans-serif`;
+      ctx.fillStyle = COLORS.textDim;
+      ctx.fillText(`🎲 [${state.dice.remaining.join(', ')}]`, this.width - 8, msgCY);
+    } else if (state.lastSaveTime) {
+      ctx.font = `${smallFont}px sans-serif`;
+      ctx.fillStyle = '#558855';
+      ctx.fillText(`💾 ${formatTime(state.lastSaveTime)}`, this.width - 8, msgCY);
     }
 
+    // ── Button row (bottom) ───────────────────────────────────────────────────
+    ctx.fillStyle = 'rgba(0,0,0,0.60)';
+    ctx.fillRect(0, l.btnAreaY, this.width, l.btnAreaH);
+
+    // Thin separator line between the two rows
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, l.btnAreaY);
+    ctx.lineTo(this.width, l.btnAreaY);
+    ctx.stroke();
+
     ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
   }
 
   private renderWinScreen(winner: Player): void {

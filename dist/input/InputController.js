@@ -30,11 +30,11 @@ export class InputController {
         const layout = this.renderer.getLayout();
         if (!layout)
             return;
-        const hudY = layout.hudY;
-        const hudH = layout.hudH;
-        // Button height: at least 46px to fit emoji + text two-line layout.
-        const btnH = Math.max(46, Math.min(54, hudH * 0.82));
-        const btnY = hudY + (hudH - btnH) / 2;
+        const btnAreaY = layout.btnAreaY;
+        const btnAreaH = layout.btnAreaH;
+        // Button height: fill most of the button row.
+        const btnH = Math.max(46, Math.min(54, btnAreaH * 0.90));
+        const btnY = btnAreaY + (btnAreaH - btnH) / 2;
         const margin = 6;
         const loc = t();
         if (layout.isPortrait) {
