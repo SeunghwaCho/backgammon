@@ -24,6 +24,11 @@ let restoreButtons = null;
 let confirmingNewGame = false;
 let confirmingClearSave = false;
 let confirmButtons = null;
+// Suppress confirm-click handling for the same event that opened the dialog.
+// The button click that opens the dialog and the interceptor both fire on the
+// same mousedown/touchstart event; without this guard the dialog opens and
+// immediately closes because the interceptor sees "tap outside".
+let suppressConfirmHandling = false;
 // Error display timeout
 let errorClearTimeout = null;
 // ─── Initialization ───────────────────────────────────────────────────────────
@@ -181,13 +186,18 @@ function handleAction(action) {
             handleMakeMove(action.move);
             break;
         case 'newGame':
-            // Show confirmation dialog instead of acting immediately
+            // Show confirmation dialog instead of acting immediately.
+            // Suppress the interceptor for the current event so it doesn't
+            // immediately dismiss the dialog as an "outside tap".
             confirmingNewGame = true;
+            suppressConfirmHandling = true;
+            setTimeout(() => { suppressConfirmHandling = false; }, 0);
             render();
             break;
         case 'clearSave':
-            // Show confirmation dialog instead of acting immediately
             confirmingClearSave = true;
+            suppressConfirmHandling = true;
+            setTimeout(() => { suppressConfirmHandling = false; }, 0);
             render();
             break;
         case 'continueGame':
@@ -557,6 +567,8 @@ function delay(ms) {
 }
 // ─── Canvas Click Intercept for Startup ───────────────────────────────────────
 function handleConfirmClick(x, y) {
+    if (suppressConfirmHandling)
+        return false;
     if (!confirmButtons)
         return false;
     const { yesBtn, noBtn } = confirmButtons;
