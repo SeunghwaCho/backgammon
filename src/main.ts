@@ -24,6 +24,7 @@ import {
 } from './persistence/SaveValidation.js';
 import { rollTwoDice } from './utils/random.js';
 import { toggleLang, onLangChange, t } from './i18n/Locale.js';
+import { ANIM_MOVE_MS } from './render/AnimationSystem.js';
 
 // ─── App State ────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,9 @@ let suppressConfirmHandling = false;
 
 // Error display timeout
 let errorClearTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// requestAnimationFrame loop (runs while animations are active)
+let rafId: number | null = null;
 
 // ─── Initialization ───────────────────────────────────────────────────────────
 
@@ -370,6 +374,13 @@ function handleMakeMove(move: Move): void {
   }
 
   autoSave();
+
+  // Hit effect when the human player captures an AI checker
+  if (move.isHit) {
+    renderer.queueHitBurst(move.to);
+    startAnimLoop();
+  }
+
   render();
 
   // Check if the turn is over (no more dice or legal moves)
@@ -456,16 +467,23 @@ async function runAITurn(): Promise<void> {
     }
 
     const move = bestSeq[0];
+
+    // Queue animation before applying the state change so source coords are valid
+    renderer.queueMoveAnim(move.from, move.to, gameState.currentPlayer, move.isHit);
+
     gameState = applyMoveInternal(gameState, move);
     autoSave();
-    render();
+
+    // Start (or keep) the rAF loop which re-renders each frame during animation
+    startAnimLoop();
 
     if (gameState.phase === 'gameOver') {
       aiInProgress = false;
       return;
     }
 
-    await delay(500);
+    // Wait long enough for the animation to finish before showing the next move
+    await delay(ANIM_MOVE_MS + 70);
   }
 
   // AI turn complete
@@ -687,6 +705,24 @@ function handleStartupClick(x: number, y: number): void {
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Start a requestAnimationFrame render loop that keeps going as long as
+ * renderer.isAnimating() returns true.  Safe to call when a loop is already
+ * running — it's a no-op in that case.
+ */
+function startAnimLoop(): void {
+  if (rafId !== null) return; // already running
+  function loop(): void {
+    render();
+    if (renderer?.isAnimating()) {
+      rafId = requestAnimationFrame(loop);
+    } else {
+      rafId = null;
+    }
+  }
+  rafId = requestAnimationFrame(loop);
 }
 
 // ─── Canvas Click Intercept for Startup ───────────────────────────────────────

@@ -5,6 +5,7 @@ import { GameState, Player, Move, Point } from '../game/Types.js';
 import { barIndex, getBarCount } from '../game/GameState.js';
 import { getSelectablePoints } from '../game/MoveGenerator.js';
 import { t } from '../i18n/Locale.js';
+import { AnimationSystem, ANIM_MOVE_MS, ANIM_HIT_MS } from './AnimationSystem.js';
 
 // Layout constants
 const COLORS = {
@@ -76,8 +77,96 @@ export class CanvasRenderer {
   // Maps from point index to canvas coordinates (center-top for bottom points, center-bottom for top)
   private pointCoords: Map<number, { x: number; y: number; isTop: boolean }> = new Map();
 
+  private animSystem = new AnimationSystem();
+
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
+  }
+
+  // ── Animation API ─────────────────────────────────────────────────────────────
+
+  /** True if any checker animation or hit burst is currently active. */
+  isAnimating(): boolean {
+    return this.animSystem.isActive();
+  }
+
+  /**
+   * Queue a checker-in-flight animation from pointIndex `fromIdx` to `toIdx`.
+   * Also queues a hit-burst effect at `toIdx` when `isHit` is true.
+   * Call this BEFORE applying the state change so the source position is valid.
+   */
+  queueMoveAnim(
+    fromIdx: number,
+    toIdx:   number,
+    player:  Player,
+    isHit:   boolean
+  ): void {
+    if (!this.layout) return;
+    const fromPos = this.getAnimPosition(fromIdx);
+    const toPos   = this.getAnimPosition(toIdx);
+    if (!fromPos || !toPos) return;
+
+    const now = performance.now();
+    const r   = this.layout.checkerR;
+
+    this.animSystem.queue({
+      kind:      'move',
+      fromX: fromPos.x, fromY: fromPos.y,
+      toX:   toPos.x,   toY:   toPos.y,
+      player, r,
+      startTime: now,
+      duration:  ANIM_MOVE_MS,
+    });
+
+    if (isHit) {
+      this.animSystem.queue({
+        kind:      'hitBurst',
+        x: toPos.x, y: toPos.y,
+        r,
+        startTime: now + 120, // small delay so burst starts mid-flight
+        duration:  ANIM_HIT_MS,
+      });
+    }
+  }
+
+  /**
+   * Queue a standalone hit-burst effect at a board point.
+   * Used when the human player captures an AI piece.
+   */
+  queueHitBurst(pointIdx: number): void {
+    if (!this.layout) return;
+    const pos = this.getAnimPosition(pointIdx);
+    if (!pos) return;
+    this.animSystem.queue({
+      kind:      'hitBurst',
+      x: pos.x, y: pos.y,
+      r:         this.layout.checkerR,
+      startTime: performance.now(),
+      duration:  ANIM_HIT_MS,
+    });
+  }
+
+  /** Canvas position for a given point index, bar, or bear-off. */
+  private getAnimPosition(pointIndex: number): { x: number; y: number } | null {
+    if (pointIndex === -1)  return this.getBearOffCenter('white');
+    if (pointIndex === 26)  return this.getBearOffCenter('black');
+    return this.getPointCenter(pointIndex);
+  }
+
+  private getBearOffCenter(player: Player): { x: number; y: number } | null {
+    if (!this.layout) return null;
+    const l = this.layout;
+    if (!l.isPortrait) {
+      return {
+        x: (player === 'white' ? l.whiteBearOffX : l.blackBearOffX) + l.bearOffW / 2,
+        y: l.boardY + l.boardH / 2,
+      };
+    }
+    const bh = l.bearOffW;
+    const y  = player === 'white'
+      ? l.boardY + l.boardH + 4 + bh / 2
+      : l.boardY - bh / 2 - 4;
+    return { x: l.boardX + l.boardW / 4, y };
   }
 
   setSize(w: number, h: number): void {
@@ -383,6 +472,9 @@ export class CanvasRenderer {
     }
 
     this.renderHUD(state);
+
+    // Animation overlay: in-flight checkers and hit bursts (above board/HUD, below modal overlays)
+    this.animSystem.render(this.ctx);
 
     if (state.phase === 'gameOver' && state.winner) {
       this.renderWinScreen(state.winner);
