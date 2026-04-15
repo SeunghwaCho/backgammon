@@ -1,7 +1,7 @@
 // main.ts: Application entry point
 // Wires together all modules: game logic, rendering, input, AI, persistence
 import { cloneGameState } from './game/GameState.js';
-import { rollDice as reducerRollDice, selectPoint as reducerSelectPoint, applyPlayerMove, applyMoveInternal, startNewGame, restoreFromSave, } from './game/Reducer.js';
+import { rollDice as reducerRollDice, rollForFirst as reducerRollForFirst, selectPoint as reducerSelectPoint, applyPlayerMove, applyMoveInternal, startNewGame, restoreFromSave, } from './game/Reducer.js';
 import { chooseBestSequence } from './ai/BackgammonAI.js';
 import { CanvasRenderer } from './render/CanvasRenderer.js';
 import { InputController } from './input/InputController.js';
@@ -31,6 +31,8 @@ let confirmButtons = null;
 let suppressConfirmHandling = false;
 // Error display timeout
 let errorClearTimeout = null;
+// requestAnimationFrame loop (runs while animations are active)
+let rafId = null;
 // ─── Initialization ───────────────────────────────────────────────────────────
 async function init() {
     canvas = document.getElementById('game-canvas');
@@ -120,7 +122,7 @@ async function tryLoadSavedGame() {
         render();
     }
     else {
-        // Start fresh
+        // Start fresh — game begins in rollingForFirst, no AI scheduling needed
         startupPhase = 'playing';
         gameState = startNewGame();
         autoSave();
@@ -177,7 +179,12 @@ function handleAction(action) {
         return;
     switch (action.type) {
         case 'rollDice':
-            handleRollDice();
+            if (gameState.phase === 'rollingForFirst') {
+                handleRollForFirst();
+            }
+            else {
+                handleRollDice();
+            }
             break;
         case 'selectPoint':
             handleSelectPoint(action.pointIndex);
@@ -207,6 +214,27 @@ function handleAction(action) {
             toggleLang();
             break;
     }
+}
+function handleRollForFirst() {
+    if (gameState.phase !== 'rollingForFirst')
+        return;
+    const [wRoll, bRoll] = rollTwoDice();
+    gameState = reducerRollForFirst(gameState, wRoll, bRoll);
+    render();
+    if (wRoll !== bRoll) {
+        // Winner determined — show result briefly, then transition to actual play
+        setTimeout(() => {
+            gameState = cloneGameState(gameState);
+            gameState.phase = 'waitingForRoll';
+            gameState.initialRoll = null;
+            autoSave();
+            render();
+            if (gameState.currentPlayer === 'black') {
+                scheduleAITurn();
+            }
+        }, 1500);
+    }
+    // Tie: phase stays rollingForFirst; user clicks Roll again to re-roll
 }
 function handleRollDice() {
     if (gameState.phase !== 'waitingForRoll')
@@ -252,6 +280,16 @@ function handleSelectPoint(pointIndex) {
             handleMakeMove(moveMatch);
             return;
         }
+        // Clicking the already-selected checker when only bear-off moves are
+        // available acts as a "confirm bear off" gesture — execute the bear-off
+        // instead of deselecting.
+        if (gameState.selectedPoint === pointIndex) {
+            const bearOff = gameState.validMoves.find(m => m.to === -1 || m.to === 26);
+            if (bearOff) {
+                handleMakeMove(bearOff);
+                return;
+            }
+        }
     }
     // Try to select as a source
     const processed = inputController.processPointClick(pointIndex, gameState);
@@ -289,6 +327,13 @@ function handleMakeMove(move) {
         return;
     }
     autoSave();
+    // Hit effect when the human player captures an AI checker:
+    // burst + captured piece flying to bar
+    if (move.isHit) {
+        const captured = gameState.currentPlayer === 'white' ? 'black' : 'white';
+        renderer.queueHitBurst(move.to, captured);
+        startAnimLoop();
+    }
     render();
     // Check if the turn is over (no more dice or legal moves)
     if (gameState.phase === 'waitingForRoll' &&
@@ -304,13 +349,10 @@ function handleNewGame() {
     if (aiInProgress) {
         aiInProgress = false; // Cancel AI turn
     }
-    gameState = startNewGame();
+    gameState = startNewGame(); // starts in rollingForFirst phase
     autoSave();
     render();
-    // If AI goes first
-    if (gameState.currentPlayer === 'black') {
-        scheduleAITurn();
-    }
+    // No AI scheduling here — first player is determined by initial roll
 }
 async function handleClearSave() {
     try {
@@ -368,14 +410,20 @@ async function runAITurn() {
             break;
         }
         const move = bestSeq[0];
+        // Queue animation before applying the state change so source coords are valid.
+        // Returns the recommended delay that covers the full sequence (including
+        // captured-piece flight when isHit is true).
+        const moveDelay = renderer.queueMoveAnim(move.from, move.to, gameState.currentPlayer, move.isHit);
         gameState = applyMoveInternal(gameState, move);
         autoSave();
-        render();
+        // Start (or keep) the rAF loop which re-renders each frame during animation
+        startAnimLoop();
         if (gameState.phase === 'gameOver') {
             aiInProgress = false;
             return;
         }
-        await delay(500);
+        // Wait long enough for the full animation sequence to finish
+        await delay(moveDelay);
     }
     // AI turn complete
     aiInProgress = false;
@@ -442,6 +490,7 @@ function loadSavedGame() {
             winner: gs.winner,
             lastSaveTime: savedData.timestamp,
             errorMessage: null,
+            initialRoll: null,
         };
         // Restore using reducer (re-generates legal sequences)
         gameState = restoreFromSave(restored);
@@ -553,17 +602,34 @@ function handleStartupClick(x, y) {
     if (x >= newGameBtn.x && x <= newGameBtn.x + newGameBtn.w &&
         y >= newGameBtn.y && y <= newGameBtn.y + newGameBtn.h) {
         startupPhase = 'playing';
-        gameState = startNewGame();
+        gameState = startNewGame(); // starts in rollingForFirst
         autoSave();
         render();
-        if (gameState.currentPlayer === 'black')
-            scheduleAITurn();
         return;
     }
 }
 // ─── Utilities ────────────────────────────────────────────────────────────────
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+/**
+ * Start a requestAnimationFrame render loop that keeps going as long as
+ * renderer.isAnimating() returns true.  Safe to call when a loop is already
+ * running — it's a no-op in that case.
+ */
+function startAnimLoop() {
+    if (rafId !== null)
+        return; // already running
+    function loop() {
+        render();
+        if (renderer?.isAnimating()) {
+            rafId = requestAnimationFrame(loop);
+        }
+        else {
+            rafId = null;
+        }
+    }
+    rafId = requestAnimationFrame(loop);
 }
 // ─── Canvas Click Intercept for Startup ───────────────────────────────────────
 function handleConfirmClick(x, y) {

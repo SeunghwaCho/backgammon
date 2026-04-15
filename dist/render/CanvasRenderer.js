@@ -3,6 +3,7 @@
 import { barIndex } from '../game/GameState.js';
 import { getSelectablePoints } from '../game/MoveGenerator.js';
 import { t } from '../i18n/Locale.js';
+import { AnimationSystem, ANIM_MOVE_MS, ANIM_HIT_MS } from './AnimationSystem.js';
 // Layout constants
 const COLORS = {
     boardBg: '#1a472a',
@@ -37,7 +38,132 @@ export class CanvasRenderer {
         this.layout = null;
         // Maps from point index to canvas coordinates (center-top for bottom points, center-bottom for top)
         this.pointCoords = new Map();
+        this.animSystem = new AnimationSystem();
         this.ctx = ctx;
+    }
+    // ── Animation API ─────────────────────────────────────────────────────────────
+    /** True if any checker animation or hit burst is currently active. */
+    isAnimating() {
+        return this.animSystem.isActive();
+    }
+    /**
+     * Queue a checker-in-flight animation from pointIndex `fromIdx` to `toIdx`.
+     * When `isHit` is true also queues:
+     *   - a hit-burst at the impact point (timed to attacker arrival)
+     *   - the captured piece flying from the impact point to its own bar
+     * Call this BEFORE applying the state change so source coords are valid.
+     * Returns the recommended delay (ms) the caller should wait before
+     * starting the next move, so hit sequences have enough time to complete.
+     */
+    queueMoveAnim(fromIdx, toIdx, player, isHit) {
+        const defaultDelay = ANIM_MOVE_MS + 70;
+        if (!this.layout)
+            return defaultDelay;
+        const fromPos = this.getAnimPosition(fromIdx);
+        const toPos = this.getAnimPosition(toIdx);
+        if (!fromPos || !toPos)
+            return defaultDelay;
+        const now = performance.now();
+        const r = this.layout.checkerR;
+        // 1. Attacker slides from→to
+        this.animSystem.queue({
+            kind: 'move',
+            fromX: fromPos.x, fromY: fromPos.y,
+            toX: toPos.x, toY: toPos.y,
+            player, r,
+            startTime: now,
+            duration: ANIM_MOVE_MS,
+        });
+        if (!isHit)
+            return defaultDelay;
+        // 2. Impact burst — starts as attacker approaches the destination
+        const impactDelay = ANIM_MOVE_MS * 0.80;
+        this.animSystem.queue({
+            kind: 'hitBurst',
+            x: toPos.x, y: toPos.y,
+            r,
+            startTime: now + impactDelay,
+            duration: ANIM_HIT_MS,
+        });
+        // 3. Captured piece flies from impact point to its bar
+        const captured = player === 'white' ? 'black' : 'white';
+        const capturedBarIdx = captured === 'white' ? 0 : 25;
+        const barPos = this.getAnimPosition(capturedBarIdx);
+        if (barPos) {
+            const captureDur = Math.round(ANIM_MOVE_MS * 0.85);
+            this.animSystem.queue({
+                kind: 'move',
+                fromX: toPos.x, fromY: toPos.y,
+                toX: barPos.x, toY: barPos.y,
+                player: captured,
+                r,
+                startTime: now + impactDelay,
+                duration: captureDur,
+            });
+            // Wait until the captured piece fully arrives
+            return Math.round(impactDelay + captureDur) + 80;
+        }
+        return defaultDelay;
+    }
+    /**
+     * Queue a hit-burst + captured-piece-to-bar animation.
+     * Used when the human player captures an AI piece.
+     * `capturedPlayer` is the player whose piece was just taken.
+     */
+    queueHitBurst(toIdx, capturedPlayer) {
+        if (!this.layout)
+            return;
+        const pos = this.getAnimPosition(toIdx);
+        if (!pos)
+            return;
+        const r = this.layout.checkerR;
+        const now = performance.now();
+        // Burst at capture point
+        this.animSystem.queue({
+            kind: 'hitBurst',
+            x: pos.x, y: pos.y,
+            r,
+            startTime: now,
+            duration: ANIM_HIT_MS,
+        });
+        // Captured piece flies to its bar
+        const barIdx = capturedPlayer === 'white' ? 0 : 25;
+        const barPos = this.getAnimPosition(barIdx);
+        if (barPos) {
+            this.animSystem.queue({
+                kind: 'move',
+                fromX: pos.x, fromY: pos.y,
+                toX: barPos.x, toY: barPos.y,
+                player: capturedPlayer,
+                r,
+                startTime: now,
+                duration: ANIM_MOVE_MS,
+            });
+        }
+    }
+    /** Canvas position for a given point index, bar, or bear-off. */
+    getAnimPosition(pointIndex) {
+        if (pointIndex === -1)
+            return this.getBearOffCenter('white');
+        if (pointIndex === 26)
+            return this.getBearOffCenter('black');
+        return this.getPointCenter(pointIndex);
+    }
+    getBearOffCenter(player) {
+        if (!this.layout)
+            return null;
+        const l = this.layout;
+        if (!l.isPortrait) {
+            return {
+                x: (player === 'white' ? l.whiteBearOffX : l.blackBearOffX) + l.bearOffW / 2,
+                y: l.boardY + l.boardH / 2,
+            };
+        }
+        const bh = l.bearOffW;
+        const y = player === 'white'
+            ? l.boardY + l.boardH + 4 + bh / 2
+            : l.boardY - bh / 2 - 4;
+        return { x: l.boardX + l.boardW / 4, y };
     }
     setSize(w, h) {
         this.width = w;
@@ -246,8 +372,12 @@ export class CanvasRenderer {
             if (sy >= l.boardY && sy <= l.boardY + l.boardH)
                 return 26; // black bear off
         }
-        // Bar check
-        if (sx >= l.barX && sx <= l.barX + l.barW) {
+        // Bar check — use a hit zone wide enough to cover the checker visual.
+        // barW is a narrow rendering column (~33px) but bar checkers are drawn with
+        // radius checkerR * 0.9, which overflows barX..barX+barW on both sides.
+        const barCenterX = l.barX + l.barW / 2;
+        const barHitHalf = Math.max(l.barW / 2, l.checkerR * 1.05 + 4);
+        if (sx >= barCenterX - barHitHalf && sx <= barCenterX + barHitHalf) {
             if (sy >= l.boardY && sy <= l.boardY + l.boardH / 2)
                 return 25; // black bar
             if (sy > l.boardY + l.boardH / 2 && sy <= l.boardY + l.boardH)
@@ -280,7 +410,7 @@ export class CanvasRenderer {
         const bh = l.bearOffW;
         const whiteBearOffY = l.boardY + l.boardH + 4;
         const blackBearOffY = l.boardY - bh - 4;
-        if (sx >= l.boardX && sx <= l.boardX + l.boardW / 2) {
+        if (sx >= l.boardX && sx <= l.boardX + l.boardW) {
             if (sy >= whiteBearOffY && sy <= whiteBearOffY + bh)
                 return -1; // white bear off
             if (sy >= blackBearOffY && sy <= blackBearOffY + bh)
@@ -295,7 +425,11 @@ export class CanvasRenderer {
         const col = Math.floor((sx - l.boardX) / l.pointW);
         if (col < 0 || col > 11)
             return null;
-        const barHitZone = Math.max(20, l.boardH * 0.06);
+        // Bar zone height must cover the full visible extent of the first stacked
+        // bar checker.  First checker center = midY ± checkerR * 1.05, radius =
+        // checkerR, so the outermost edge sits at midY ± checkerR * 2.05.
+        // Add a finger-touch margin of ~4 px.
+        const barHitZone = Math.max(l.checkerR * 4.5, l.boardH * 0.07);
         if (sy < midY - barHitZone / 2) {
             // Top half: points 13-24, col 0=13, col 11=24
             return 13 + col;
@@ -304,7 +438,7 @@ export class CanvasRenderer {
             // Bottom half: points 1-12, displayed right-to-left; col 0=12, col 11=1
             return 12 - col;
         }
-        // In bar area (generous hit zone)
+        // In bar area
         return sy < midY ? 25 : 0;
     }
     // Main render function
@@ -324,8 +458,13 @@ export class CanvasRenderer {
             this.renderLandscape(state);
         }
         this.renderHUD(state);
+        // Animation overlay: in-flight checkers and hit bursts (above board/HUD, below modal overlays)
+        this.animSystem.render(this.ctx);
         if (state.phase === 'gameOver' && state.winner) {
             this.renderWinScreen(state.winner);
+        }
+        if (state.phase === 'rollingForFirst' && state.initialRoll) {
+            this.renderInitialRollDice(state.initialRoll, state.currentPlayer);
         }
     }
     renderLandscape(state) {
@@ -531,9 +670,36 @@ export class CanvasRenderer {
             ? l.boardY + r
             : l.boardY + l.boardH - r;
         const isSelected = pointIndex === state.selectedPoint;
+        // Detect if this point has a bear-off move available (pre-selection only)
+        const isBearOffSource = state.phase === 'playerActing' &&
+            state.selectedPoint === null &&
+            state.legalSequences.some(seq => seq.length > 0 && seq[0].from === pointIndex &&
+                (seq[0].to === -1 || seq[0].to === 26));
         for (let i = 0; i < count; i++) {
             const cy = baseY + dir * i * spacing;
             this.drawChecker(cx, cy, r, pt.owner, isSelected);
+        }
+        // Gold ring on the innermost (most accessible) checker when bear-off is possible
+        if (isBearOffSource) {
+            const topCY = baseY + dir * (count - 1) * spacing;
+            const ctx = this.ctx;
+            ctx.beginPath();
+            ctx.arc(cx, topCY, r * 1.32, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 210, 30, 0.92)';
+            ctx.lineWidth = Math.max(2, r * 0.18);
+            ctx.stroke();
+            // Small arrow pointing toward bear-off zone
+            const arrowDir = (pt.owner === 'white') ? 1 : -1; // white=down, black=up in portrait
+            const arrowTip = topCY + arrowDir * r * 2.1;
+            const arrowBase = topCY + arrowDir * r * 1.55;
+            const hw = r * 0.38;
+            ctx.beginPath();
+            ctx.moveTo(cx, arrowTip);
+            ctx.lineTo(cx - hw, arrowBase);
+            ctx.lineTo(cx + hw, arrowBase);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255, 210, 30, 0.88)';
+            ctx.fill();
         }
         // Show count badge when checkers are small (r shrunk below 60% of default).
         if (r < l.checkerR * 0.6) {
@@ -655,16 +821,23 @@ export class CanvasRenderer {
         const l = this.layout;
         // Valid moves may go to board points (not bar); bar targets handled elsewhere
     }
+    /** True when the player has pre-selection bear-off moves available */
+    anyBearOffPossible(state) {
+        return state.phase === 'playerActing' &&
+            state.selectedPoint === null &&
+            state.legalSequences.some(seq => seq.length > 0 && (seq[0].to === -1 || seq[0].to === 26));
+    }
     drawBearOffAreas(state) {
         if (!this.layout)
             return;
         const l = this.layout;
         const ctx = this.ctx;
+        const canBearOff = this.anyBearOffPossible(state);
         // White bear-off (left side)
-        ctx.fillStyle = 'rgba(245,240,232,0.15)';
+        ctx.fillStyle = canBearOff ? 'rgba(255,210,30,0.18)' : 'rgba(245,240,232,0.15)';
         ctx.fillRect(l.whiteBearOffX, l.boardY, l.bearOffW, l.boardH);
-        ctx.strokeStyle = 'rgba(245,240,232,0.4)';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = canBearOff ? 'rgba(255,210,30,0.75)' : 'rgba(245,240,232,0.4)';
+        ctx.lineWidth = canBearOff ? 2 : 1;
         ctx.strokeRect(l.whiteBearOffX, l.boardY, l.bearOffW, l.boardH);
         const wX = l.whiteBearOffX + l.bearOffW / 2;
         const fontSize = Math.max(10, 11 * l.fontScale);
@@ -679,10 +852,10 @@ export class CanvasRenderer {
             this.drawChecker(wX, cy, l.bearOffW * 0.35, 'white', false);
         }
         // Black bear-off (right side)
-        ctx.fillStyle = 'rgba(26,26,46,0.25)';
+        ctx.fillStyle = canBearOff ? 'rgba(255,210,30,0.18)' : 'rgba(26,26,46,0.25)';
         ctx.fillRect(l.blackBearOffX, l.boardY, l.bearOffW, l.boardH);
-        ctx.strokeStyle = 'rgba(100,100,140,0.4)';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = canBearOff ? 'rgba(255,210,30,0.75)' : 'rgba(100,100,140,0.4)';
+        ctx.lineWidth = canBearOff ? 2 : 1;
         ctx.strokeRect(l.blackBearOffX, l.boardY, l.bearOffW, l.boardH);
         const bX = l.blackBearOffX + l.bearOffW / 2;
         ctx.font = `bold ${fontSize}px sans-serif`;
@@ -701,13 +874,14 @@ export class CanvasRenderer {
         const l = this.layout;
         const ctx = this.ctx;
         const bh = l.bearOffW;
+        const canBearOff = this.anyBearOffPossible(state);
         // White bear-off: below the board
         const whiteY = l.boardY + l.boardH + 4;
-        ctx.fillStyle = 'rgba(245,240,232,0.12)';
-        ctx.fillRect(l.boardX, whiteY, l.boardW / 2, bh);
-        ctx.strokeStyle = 'rgba(245,240,232,0.3)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(l.boardX, whiteY, l.boardW / 2, bh);
+        ctx.fillStyle = canBearOff ? 'rgba(255,210,30,0.18)' : 'rgba(245,240,232,0.12)';
+        ctx.fillRect(l.boardX, whiteY, l.boardW, bh);
+        ctx.strokeStyle = canBearOff ? 'rgba(255,210,30,0.75)' : 'rgba(245,240,232,0.3)';
+        ctx.lineWidth = canBearOff ? 2 : 1;
+        ctx.strokeRect(l.boardX, whiteY, l.boardW, bh);
         const fontSize = Math.max(9, 10 * l.fontScale);
         ctx.font = `${fontSize}px sans-serif`;
         ctx.fillStyle = COLORS.textLight;
@@ -715,11 +889,11 @@ export class CanvasRenderer {
         ctx.fillText(`♙ ${state.whiteBorneOff}`, l.boardX + 4, whiteY + bh / 2 + 4);
         // Black bear-off: above the board
         const blackY = l.boardY - bh - 4;
-        ctx.fillStyle = 'rgba(26,26,46,0.2)';
-        ctx.fillRect(l.boardX, blackY, l.boardW / 2, bh);
-        ctx.strokeStyle = 'rgba(100,100,140,0.3)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(l.boardX, blackY, l.boardW / 2, bh);
+        ctx.fillStyle = canBearOff ? 'rgba(255,210,30,0.18)' : 'rgba(26,26,46,0.2)';
+        ctx.fillRect(l.boardX, blackY, l.boardW, bh);
+        ctx.strokeStyle = canBearOff ? 'rgba(255,210,30,0.75)' : 'rgba(100,100,140,0.3)';
+        ctx.lineWidth = canBearOff ? 2 : 1;
+        ctx.strokeRect(l.boardX, blackY, l.boardW, bh);
         ctx.font = `${fontSize}px sans-serif`;
         ctx.fillStyle = '#aaaaff';
         ctx.textAlign = 'left';
@@ -832,10 +1006,24 @@ export class CanvasRenderer {
         ctx.fillStyle = playerColor;
         const playerName = state.currentPlayer === 'white' ? loc.youTurn : loc.aiTurn;
         let statusMsg = '';
-        if (state.phase === 'waitingForRoll')
+        if (state.phase === 'rollingForFirst') {
+            ctx.fillStyle = '#aaccff';
+            if (!state.initialRoll) {
+                statusMsg = loc.rollForFirstPrompt;
+            }
+            else if (state.initialRoll.white === state.initialRoll.black) {
+                statusMsg = loc.rollForFirstTie;
+            }
+            else {
+                statusMsg = state.currentPlayer === 'white' ? loc.rollForFirstWhiteFirst : loc.rollForFirstBlackFirst;
+            }
+        }
+        else if (state.phase === 'waitingForRoll') {
             statusMsg = `${playerName}: ${loc.clickRoll}`;
-        else if (state.phase === 'playerActing')
+        }
+        else if (state.phase === 'playerActing') {
             statusMsg = `${playerName}: ${loc.selectPiece}`;
+        }
         else if (state.phase === 'aiThinking') {
             ctx.fillStyle = '#aaaacc';
             statusMsg = loc.aiThinking;
@@ -891,6 +1079,53 @@ export class CanvasRenderer {
         ctx.fillText(loc.newGameHint, cx, cy + 20);
         ctx.textAlign = 'left';
     }
+    // Draw initial roll result: two dice side by side with player labels
+    renderInitialRollDice(initialRoll, winner) {
+        if (!this.layout)
+            return;
+        const l = this.layout;
+        const ctx = this.ctx;
+        const isTie = initialRoll.white === initialRoll.black;
+        const diceSize = Math.min(64, l.checkerR * 3.2, 80) * l.fontScale;
+        const gap = diceSize * 0.4;
+        const totalW = diceSize * 2 + gap;
+        const cx = this.width / 2;
+        // Center vertically in the board area
+        const diceY = l.boardY + l.boardH / 2 - diceSize / 2;
+        const whiteX = cx - totalW / 2;
+        const blackX = cx + gap / 2 + diceSize;
+        // Dim overlay behind dice to make them pop
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        const padH = diceSize * 0.5;
+        const padV = diceSize * 0.55;
+        roundRect(ctx, cx - totalW / 2 - padH, diceY - padV, totalW + padH * 2, diceSize + padV * 2, 12);
+        ctx.fill();
+        // Draw dice — white die on left, black die on right
+        const isWhiteWinner = !isTie && winner === 'white';
+        const isBlackWinner = !isTie && winner === 'black';
+        ctx.globalAlpha = isTie || isWhiteWinner ? 1.0 : 0.5;
+        this.drawDie(whiteX, diceY, diceSize, initialRoll.white, true, false);
+        ctx.globalAlpha = isTie || isBlackWinner ? 1.0 : 0.5;
+        this.drawDie(blackX, diceY, diceSize, initialRoll.black, false, false);
+        ctx.globalAlpha = 1.0;
+        // "VS" label between dice
+        const labelFont = Math.max(10, 12 * l.fontScale);
+        ctx.font = `bold ${labelFont}px sans-serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('VS', cx, diceY + diceSize / 2);
+        // Player labels below dice
+        const nameFont = Math.max(9, 11 * l.fontScale);
+        ctx.font = `${nameFont}px sans-serif`;
+        const loc = t();
+        ctx.fillStyle = isTie || isWhiteWinner ? '#f5f0e8' : 'rgba(245,240,232,0.4)';
+        ctx.fillText(loc.labelWhite, whiteX + diceSize / 2, diceY + diceSize + diceSize * 0.3);
+        ctx.fillStyle = isTie || isBlackWinner ? '#aaaaff' : 'rgba(170,170,255,0.4)';
+        ctx.fillText(loc.labelBlack, blackX + diceSize / 2, diceY + diceSize + diceSize * 0.3);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+    }
     // Highlight valid target points with a glow effect
     renderValidTargets(state) {
         if (!this.layout)
@@ -932,7 +1167,7 @@ export class CanvasRenderer {
             const bearY = player === 'white'
                 ? l.boardY + l.boardH + 4
                 : l.boardY - l.bearOffW - 4;
-            roundRect(ctx, l.boardX + 2, bearY + 2, l.boardW / 2 - 4, l.bearOffW - 4, 4);
+            roundRect(ctx, l.boardX + 2, bearY + 2, l.boardW - 4, l.bearOffW - 4, 4);
             ctx.stroke();
         }
         ctx.setLineDash([]);

@@ -480,7 +480,7 @@ export class CanvasRenderer {
     const whiteBearOffY = l.boardY + l.boardH + 4;
     const blackBearOffY = l.boardY - bh - 4;
 
-    if (sx >= l.boardX && sx <= l.boardX + l.boardW / 2) {
+    if (sx >= l.boardX && sx <= l.boardX + l.boardW) {
       if (sy >= whiteBearOffY && sy <= whiteBearOffY + bh) return -1; // white bear off
       if (sy >= blackBearOffY && sy <= blackBearOffY + bh) return 26; // black bear off
     }
@@ -771,9 +771,40 @@ export class CanvasRenderer {
 
     const isSelected = pointIndex === state.selectedPoint;
 
+    // Detect if this point has a bear-off move available (pre-selection only)
+    const isBearOffSource = state.phase === 'playerActing' &&
+      state.selectedPoint === null &&
+      state.legalSequences.some(seq =>
+        seq.length > 0 && seq[0].from === pointIndex &&
+        (seq[0].to === -1 || seq[0].to === 26)
+      );
+
     for (let i = 0; i < count; i++) {
       const cy = baseY + dir * i * spacing;
       this.drawChecker(cx, cy, r, pt.owner!, isSelected);
+    }
+
+    // Gold ring on the innermost (most accessible) checker when bear-off is possible
+    if (isBearOffSource) {
+      const topCY = baseY + dir * (count - 1) * spacing;
+      const ctx = this.ctx;
+      ctx.beginPath();
+      ctx.arc(cx, topCY, r * 1.32, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 210, 30, 0.92)';
+      ctx.lineWidth = Math.max(2, r * 0.18);
+      ctx.stroke();
+      // Small arrow pointing toward bear-off zone
+      const arrowDir = (pt.owner === 'white') ? 1 : -1; // white=down, black=up in portrait
+      const arrowTip = topCY + arrowDir * r * 2.1;
+      const arrowBase = topCY + arrowDir * r * 1.55;
+      const hw = r * 0.38;
+      ctx.beginPath();
+      ctx.moveTo(cx, arrowTip);
+      ctx.lineTo(cx - hw, arrowBase);
+      ctx.lineTo(cx + hw, arrowBase);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(255, 210, 30, 0.88)';
+      ctx.fill();
     }
 
     // Show count badge when checkers are small (r shrunk below 60% of default).
@@ -916,16 +947,27 @@ export class CanvasRenderer {
     // Valid moves may go to board points (not bar); bar targets handled elsewhere
   }
 
+  /** True when the player has pre-selection bear-off moves available */
+  private anyBearOffPossible(state: GameState): boolean {
+    return state.phase === 'playerActing' &&
+      state.selectedPoint === null &&
+      state.legalSequences.some(seq =>
+        seq.length > 0 && (seq[0].to === -1 || seq[0].to === 26)
+      );
+  }
+
   private drawBearOffAreas(state: GameState): void {
     if (!this.layout) return;
     const l = this.layout;
     const ctx = this.ctx;
 
+    const canBearOff = this.anyBearOffPossible(state);
+
     // White bear-off (left side)
-    ctx.fillStyle = 'rgba(245,240,232,0.15)';
+    ctx.fillStyle = canBearOff ? 'rgba(255,210,30,0.18)' : 'rgba(245,240,232,0.15)';
     ctx.fillRect(l.whiteBearOffX, l.boardY, l.bearOffW, l.boardH);
-    ctx.strokeStyle = 'rgba(245,240,232,0.4)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = canBearOff ? 'rgba(255,210,30,0.75)' : 'rgba(245,240,232,0.4)';
+    ctx.lineWidth = canBearOff ? 2 : 1;
     ctx.strokeRect(l.whiteBearOffX, l.boardY, l.bearOffW, l.boardH);
 
     const wX = l.whiteBearOffX + l.bearOffW / 2;
@@ -943,10 +985,10 @@ export class CanvasRenderer {
     }
 
     // Black bear-off (right side)
-    ctx.fillStyle = 'rgba(26,26,46,0.25)';
+    ctx.fillStyle = canBearOff ? 'rgba(255,210,30,0.18)' : 'rgba(26,26,46,0.25)';
     ctx.fillRect(l.blackBearOffX, l.boardY, l.bearOffW, l.boardH);
-    ctx.strokeStyle = 'rgba(100,100,140,0.4)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = canBearOff ? 'rgba(255,210,30,0.75)' : 'rgba(100,100,140,0.4)';
+    ctx.lineWidth = canBearOff ? 2 : 1;
     ctx.strokeRect(l.blackBearOffX, l.boardY, l.bearOffW, l.boardH);
 
     const bX = l.blackBearOffX + l.bearOffW / 2;
@@ -968,13 +1010,15 @@ export class CanvasRenderer {
     const ctx = this.ctx;
     const bh = l.bearOffW;
 
+    const canBearOff = this.anyBearOffPossible(state);
+
     // White bear-off: below the board
     const whiteY = l.boardY + l.boardH + 4;
-    ctx.fillStyle = 'rgba(245,240,232,0.12)';
-    ctx.fillRect(l.boardX, whiteY, l.boardW / 2, bh);
-    ctx.strokeStyle = 'rgba(245,240,232,0.3)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(l.boardX, whiteY, l.boardW / 2, bh);
+    ctx.fillStyle = canBearOff ? 'rgba(255,210,30,0.18)' : 'rgba(245,240,232,0.12)';
+    ctx.fillRect(l.boardX, whiteY, l.boardW, bh);
+    ctx.strokeStyle = canBearOff ? 'rgba(255,210,30,0.75)' : 'rgba(245,240,232,0.3)';
+    ctx.lineWidth = canBearOff ? 2 : 1;
+    ctx.strokeRect(l.boardX, whiteY, l.boardW, bh);
 
     const fontSize = Math.max(9, 10 * l.fontScale);
     ctx.font = `${fontSize}px sans-serif`;
@@ -984,11 +1028,11 @@ export class CanvasRenderer {
 
     // Black bear-off: above the board
     const blackY = l.boardY - bh - 4;
-    ctx.fillStyle = 'rgba(26,26,46,0.2)';
-    ctx.fillRect(l.boardX, blackY, l.boardW / 2, bh);
-    ctx.strokeStyle = 'rgba(100,100,140,0.3)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(l.boardX, blackY, l.boardW / 2, bh);
+    ctx.fillStyle = canBearOff ? 'rgba(255,210,30,0.18)' : 'rgba(26,26,46,0.2)';
+    ctx.fillRect(l.boardX, blackY, l.boardW, bh);
+    ctx.strokeStyle = canBearOff ? 'rgba(255,210,30,0.75)' : 'rgba(100,100,140,0.3)';
+    ctx.lineWidth = canBearOff ? 2 : 1;
+    ctx.strokeRect(l.boardX, blackY, l.boardW, bh);
 
     ctx.font = `${fontSize}px sans-serif`;
     ctx.fillStyle = '#aaaaff';
@@ -1289,7 +1333,7 @@ export class CanvasRenderer {
       const bearY = player === 'white'
         ? l.boardY + l.boardH + 4
         : l.boardY - l.bearOffW - 4;
-      roundRect(ctx, l.boardX + 2, bearY + 2, l.boardW / 2 - 4, l.bearOffW - 4, 4);
+      roundRect(ctx, l.boardX + 2, bearY + 2, l.boardW - 4, l.bearOffW - 4, 4);
       ctx.stroke();
     }
 

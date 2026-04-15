@@ -29,15 +29,16 @@ export function createInitialGameState() {
         board: createInitialBoard(),
         whiteBorneOff: 0,
         blackBorneOff: 0,
-        currentPlayer: 'white', // white goes first (can be randomized)
+        currentPlayer: 'white',
         dice: null,
-        phase: 'waitingForRoll',
+        phase: 'rollingForFirst',
         selectedPoint: null,
         validMoves: [],
         legalSequences: [],
         winner: null,
         lastSaveTime: null,
         errorMessage: null,
+        initialRoll: null,
     };
 }
 // Deep clone a game state to prevent mutation bugs
@@ -60,6 +61,7 @@ export function cloneGameState(state) {
         winner: state.winner,
         lastSaveTime: state.lastSaveTime,
         errorMessage: state.errorMessage,
+        initialRoll: state.initialRoll ? { ...state.initialRoll } : null,
     };
 }
 // Clone just the board (used for move simulation)

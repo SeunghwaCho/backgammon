@@ -121,13 +121,22 @@ export function endTurn(state) {
     next.phase = 'waitingForRoll';
     return next;
 }
-// Start a new game
+// Roll both dice to determine who goes first
+// Returns updated state; tie stays in rollingForFirst, winner also stays so
+// the caller can display the result briefly before transitioning.
+export function rollForFirst(state, wRoll, bRoll) {
+    const next = cloneGameState(state);
+    next.initialRoll = { white: wRoll, black: bRoll };
+    if (wRoll !== bRoll) {
+        // Set the winner as currentPlayer; main.ts will transition phase after a delay
+        next.currentPlayer = wRoll > bRoll ? 'white' : 'black';
+    }
+    // Phase stays rollingForFirst in both tie and winner cases; caller drives transition
+    return next;
+}
+// Start a new game (begins in rollingForFirst so players roll to decide who goes first)
 export function startNewGame() {
-    // Randomly decide who goes first
-    const firstPlayer = Math.random() < 0.5 ? 'white' : 'black';
-    const initial = createInitialGameState();
-    initial.currentPlayer = firstPlayer;
-    return initial;
+    return createInitialGameState();
 }
 // Restore game from saved state (with validation)
 export function restoreFromSave(saved) {
@@ -142,9 +151,14 @@ export function restoreFromSave(saved) {
     }
     saved.selectedPoint = null;
     saved.validMoves = [];
+    saved.initialRoll = null;
     // If AI was mid-thinking, reset to waitingForRoll for that player
     if (saved.phase === 'aiThinking') {
         saved.phase = 'waitingForRoll';
+    }
+    // If restored mid-initial-roll, restart the initial roll phase cleanly
+    if (saved.phase === 'rollingForFirst') {
+        saved.currentPlayer = 'white'; // will be re-determined by fresh roll
     }
     return saved;
 }

@@ -335,6 +335,17 @@ function handleSelectPoint(pointIndex: number): void {
       handleMakeMove(moveMatch);
       return;
     }
+
+    // Clicking the already-selected checker when only bear-off moves are
+    // available acts as a "confirm bear off" gesture — execute the bear-off
+    // instead of deselecting.
+    if (gameState.selectedPoint === pointIndex) {
+      const bearOff = gameState.validMoves.find(m => m.to === -1 || m.to === 26);
+      if (bearOff) {
+        handleMakeMove(bearOff);
+        return;
+      }
+    }
   }
 
   // Try to select as a source

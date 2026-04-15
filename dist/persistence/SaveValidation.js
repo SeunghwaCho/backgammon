@@ -92,7 +92,7 @@ function validateGameState(gs, errors) {
     }
     // Phase
     const validPhases = [
-        'waitingForRoll', 'playerActing', 'aiThinking', 'gameOver',
+        'rollingForFirst', 'waitingForRoll', 'playerActing', 'aiThinking', 'gameOver',
     ];
     if (!validPhases.includes(gs.phase)) {
         err(errors, `phase invalid: ${gs.phase}`);
