@@ -86,24 +86,35 @@ export class InputController {
     const soundEmoji = audioSystem.muted ? '🔇' : '🔊';
     const soundText  = audioSystem.muted ? loc.btnSoundOffText : loc.btnSoundOnText;
 
+    // ── Roll Dice button: overlaid on the board center (same area as the dice) ──
+    // Wider/taller than HUD buttons so it's easy to click in the middle of the board.
+    const rollBtnW = Math.min(120, canvasW * 0.18);
+    const rollBtnH = Math.min(60, layout.boardH * 0.18);
+    const rollBtnCX = layout.isPortrait
+      ? layout.boardX + layout.boardW / 2
+      : layout.boardX + layout.boardW * 0.625;   // right of center (mirrors dice placement)
+    const rollBtnCY = layout.boardY + layout.boardH / 2;
+
+    const rollBtn: ButtonArea = {
+      x: rollBtnCX - rollBtnW / 2,
+      y: rollBtnCY - rollBtnH / 2,
+      w: rollBtnW,
+      h: rollBtnH,
+      action: { type: 'rollDice' },
+      label: loc.btnRoll,
+      emoji: loc.btnRollEmoji,
+      text: loc.btnRollText,
+      visible: (s) => (s.phase === 'waitingForRoll' && s.currentPlayer === 'white') || s.phase === 'rollingForFirst',
+    };
+
     if (layout.isPortrait) {
-      // Portrait: 5 equal buttons across full width
-      const totalMargin = margin * 6;
-      const btnW = Math.floor((canvasW - totalMargin) / 5);
+      // Portrait: 4 equal buttons across full width (roll moved to board center)
+      const totalMargin = margin * 5;
+      const btnW = Math.floor((canvasW - totalMargin) / 4);
       this.buttons = [
+        rollBtn,
         {
           x: margin,
-          y: btnY,
-          w: btnW,
-          h: btnH,
-          action: { type: 'rollDice' },
-          label: loc.btnRoll,
-          emoji: loc.btnRollEmoji,
-          text: loc.btnRollText,
-          visible: (s) => (s.phase === 'waitingForRoll' && s.currentPlayer === 'white') || s.phase === 'rollingForFirst',
-        },
-        {
-          x: margin * 2 + btnW,
           y: btnY,
           w: btnW,
           h: btnH,
@@ -114,7 +125,7 @@ export class InputController {
           visible: (_) => true,
         },
         {
-          x: margin * 3 + btnW * 2,
+          x: margin * 2 + btnW,
           y: btnY,
           w: btnW,
           h: btnH,
@@ -125,7 +136,7 @@ export class InputController {
           visible: (_) => true,
         },
         {
-          x: margin * 4 + btnW * 3,
+          x: margin * 3 + btnW * 2,
           y: btnY,
           w: btnW,
           h: btnH,
@@ -136,7 +147,7 @@ export class InputController {
           visible: (_) => true,
         },
         {
-          x: margin * 5 + btnW * 4,
+          x: margin * 4 + btnW * 3,
           y: btnY,
           w: btnW,
           h: btnH,
@@ -148,22 +159,12 @@ export class InputController {
         },
       ];
     } else {
-      // Landscape: buttons on the right side
-      const btnW    = Math.min(88, canvasW * 0.14);
-      const smallW  = Math.min(72, canvasW * 0.1);
+      // Landscape: 4 HUD buttons on the right (roll moved to board center)
+      const btnW   = Math.min(88, canvasW * 0.14);
+      const smallW = Math.min(72, canvasW * 0.1);
       const rightEdge = canvasW - margin;
       this.buttons = [
-        {
-          x: rightEdge - btnW * 3 - smallW * 2 - margin * 4,
-          y: btnY,
-          w: btnW,
-          h: btnH,
-          action: { type: 'rollDice' },
-          label: loc.btnRoll,
-          emoji: loc.btnRollEmoji,
-          text: loc.btnRollText,
-          visible: (s) => (s.phase === 'waitingForRoll' && s.currentPlayer === 'white') || s.phase === 'rollingForFirst',
-        },
+        rollBtn,
         {
           x: rightEdge - btnW * 2 - smallW * 2 - margin * 3,
           y: btnY,

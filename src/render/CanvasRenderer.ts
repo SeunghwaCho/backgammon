@@ -231,26 +231,35 @@ export class CanvasRenderer {
    * final values.  The rAF loop (startAnimLoop in main.ts) must be started
    * by the caller.
    */
-  queueDiceRoll(val1: number, val2: number): void {
-    if (!this.layout) return;
+  /** Compute the top-left origin and size for the two-dice display. */
+  private dicePlacement(): { diceX: number; diceY: number; diceSize: number } | null {
+    if (!this.layout) return null;
     const l = this.layout;
     const diceSize = Math.min(72, l.checkerR * 3.6, 88) * l.fontScale;
-    const padding = 10;
+    const padding  = 10;
+    const totalW   = diceSize * 2 + padding;
     let diceX: number, diceY: number;
 
     if (l.isPortrait) {
-      const totalW = diceSize * 2 + padding;
-      diceX = l.boardX + l.boardW / 2 + (l.boardW / 2 - totalW) / 2;
-      diceY = l.boardY + l.boardH / 2 - diceSize / 2;
+      // Portrait: horizontal center of the board
+      diceX = l.boardX + (l.boardW - totalW) / 2;
     } else {
-      const totalW = diceSize * 2 + padding;
-      diceX = l.barX + (l.barW - totalW) / 2;
-      diceY = l.boardY + l.boardH / 2 - diceSize / 2;
+      // Landscape: right of center (toasts sit in the left quarter)
+      diceX = l.boardX + l.boardW / 2 + (l.boardW / 4 - totalW) / 2;
     }
+    // Both modes: vertical center of the board (checker-free middle strip)
+    diceY = l.boardY + l.boardH / 2 - diceSize / 2;
+
+    return { diceX, diceY, diceSize };
+  }
+
+  queueDiceRoll(val1: number, val2: number): void {
+    const p = this.dicePlacement();
+    if (!p) return;
 
     this.diceRollAnim = {
       val1, val2,
-      diceX, diceY, diceSize,
+      diceX: p.diceX, diceY: p.diceY, diceSize: p.diceSize,
       startTime: performance.now(),
       duration: ANIM_DICE_MS,
     };
@@ -1172,17 +1181,10 @@ export class CanvasRenderer {
 
     let diceX: number, diceY: number;
 
-    if (l.isPortrait) {
-      // Center the two dice horizontally in the right half of the board
-      const totalW = diceSize * 2 + padding;
-      diceX = l.boardX + l.boardW / 2 + (l.boardW / 2 - totalW) / 2;
-      diceY = l.boardY + l.boardH / 2 - diceSize / 2;
-    } else {
-      // Center inside the bar area
-      const totalW = diceSize * 2 + padding;
-      diceX = l.barX + (l.barW - totalW) / 2;
-      diceY = l.boardY + l.boardH / 2 - diceSize / 2;
-    }
+    const p = this.dicePlacement();
+    if (!p) return;
+    diceX = p.diceX;
+    diceY = p.diceY;
 
     const isWhite = player === 'white';
 
