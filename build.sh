@@ -3,77 +3,56 @@ set -euo pipefail
 
 # -------------------------------------------------------
 # build.sh
-# TypeScript를 컴파일하고 실행에 필요한 파일만
-# release/ 폴더로 복사합니다.
+# esbuild로 번들링하여 CSS + JS가 인라인된
+# 단일 index.html 파일을 release/ 에 생성합니다.
 # -------------------------------------------------------
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RELEASE_DIR="$PROJECT_ROOT/release"
-DIST_DIR="$PROJECT_ROOT/dist"
 
 echo "==> 빌드 시작: $(date '+%Y-%m-%d %H:%M:%S')"
 
-# 1. TypeScript 컴파일
-echo "==> TypeScript 컴파일 중..."
-cd "$PROJECT_ROOT"
-npx tsc -p tsconfig.json
-echo "    컴파일 완료"
-
-# 2. 기존 release 폴더 초기화
+# 1. 기존 release 폴더 초기화
 echo "==> release/ 폴더 초기화..."
 rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
 
-# 3. 정적 파일 복사
-# index.html의 "dist/main.js" 경로를 "main.js"로 교체해서 복사
-echo "==> 정적 파일 복사..."
-sed 's|src="dist/main\.js"|src="main.js"|g' "$PROJECT_ROOT/index.html" > "$RELEASE_DIR/index.html"
-cp "$PROJECT_ROOT/style.css"  "$RELEASE_DIR/"
+# 2. esbuild: TypeScript → 단일 번들 JS (minify)
+echo "==> esbuild 번들링 중..."
+npx esbuild src/main.ts \
+  --bundle \
+  --minify \
+  --target=es2020 \
+  --outfile="$RELEASE_DIR/bundle.js"
+echo "    번들 완료: $(wc -c < "$RELEASE_DIR/bundle.js") bytes"
 
-# 4. dist/ 에서 테스트 파일을 제외한 .js 파일만 복사
-#    (소스맵 .js.map 은 제외, tests/ 디렉터리 제외)
-echo "==> JavaScript 파일 복사 (tests 제외)..."
+# 3. CSS + JS를 index.html에 인라인하여 단일 파일 생성
+echo "==> 단일 index.html 생성 중..."
+node - "$PROJECT_ROOT" "$RELEASE_DIR" <<'EOF'
+const fs   = require('fs');
+const path = require('path');
 
-copy_js_dir() {
-    local src_subdir="$1"           # e.g. dist/ai
-    local rel_subdir="${src_subdir#$DIST_DIR/}"  # e.g. ai
+const [,, projectRoot, releaseDir] = process.argv;
 
-    if [ ! -d "$src_subdir" ]; then
-        return
-    fi
+const html   = fs.readFileSync(path.join(projectRoot, 'index.html'), 'utf8');
+const css    = fs.readFileSync(path.join(projectRoot, 'style.css'),  'utf8');
+const js     = fs.readFileSync(path.join(releaseDir,  'bundle.js'),  'utf8');
 
-    mkdir -p "$RELEASE_DIR/$rel_subdir"
-    for f in "$src_subdir"/*.js; do
-        [ -e "$f" ] || continue     # 파일이 없으면 건너뜀
-        cp "$f" "$RELEASE_DIR/$rel_subdir/"
-    done
-}
+const result = html
+  .replace('<link rel="stylesheet" href="style.css" />', `<style>\n${css}\n</style>`)
+  .replace('<script type="module" src="dist/main.js"></script>', `<script>\n${js}\n</script>`);
 
-# 최상위 dist/*.js
-for f in "$DIST_DIR"/*.js; do
-    [ -e "$f" ] || continue
-    cp "$f" "$RELEASE_DIR/"
-done
+fs.writeFileSync(path.join(releaseDir, 'index.html'), result, 'utf8');
+EOF
 
-# 하위 디렉터리 (tests 제외)
-for dir in "$DIST_DIR"/*/; do
-    dirname="$(basename "$dir")"
-    if [ "$dirname" = "tests" ]; then
-        echo "    건너뜀: dist/tests/"
-        continue
-    fi
-    copy_js_dir "$dir"
-    echo "    복사됨: dist/$dirname/"
-done
+# 4. 임시 bundle.js 삭제
+rm "$RELEASE_DIR/bundle.js"
 
 # 5. 결과 요약
+SIZE=$(wc -c < "$RELEASE_DIR/index.html")
 echo ""
 echo "==> 빌드 완료!"
-echo "    출력 위치: $RELEASE_DIR"
+echo "    출력 위치: $RELEASE_DIR/index.html  (단일 파일)"
+echo "    파일 크기: ${SIZE} bytes ($(node -e "process.stdout.write((${SIZE}/1024).toFixed(1))") KB)"
 echo ""
-echo "    포함된 파일:"
-ls -lR "$RELEASE_DIR" | grep "^[^d]" | awk '{print "      " $NF}' 2>/dev/null || true
-
-echo ""
-echo "실행 방법: 브라우저에서 release/index.html 을 열거나,"
-echo "           'npx serve $RELEASE_DIR' 등의 정적 서버를 사용하세요."
+echo "실행 방법: release/index.html 을 브라우저에서 직접 열면 됩니다."
