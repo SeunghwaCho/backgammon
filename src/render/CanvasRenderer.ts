@@ -6,6 +6,7 @@ import { barIndex, getBarCount } from '../game/GameState.js';
 import { getSelectablePoints } from '../game/MoveGenerator.js';
 import { t } from '../i18n/Locale.js';
 import { AnimationSystem, ANIM_MOVE_MS, ANIM_HIT_MS } from './AnimationSystem.js';
+import { renderToast } from '../ui/HUD.js';
 
 // Layout constants
 const COLORS = {
@@ -595,6 +596,58 @@ export class CanvasRenderer {
 
     // Dice-roll tumble animation (above checker anims, below win/initial-roll screens)
     this.renderDiceAnim();
+
+    // Toast popups: rendered on top of board/HUD but below win/game-over screens
+    if (state.phase !== 'gameOver') {
+      const l = this.layout!;
+      const loc = t();
+
+      // ── Toast anchor: left-center of board, in the checker-free middle strip ──
+      // Checkers occupy the top pointH and bottom pointH of the board.
+      // The gap between them (boardH * 0.16) is safe. We center toasts there.
+      // In portrait mode, use the horizontal center of the board instead.
+      const toastMaxW  = l.isPortrait
+        ? l.boardW * 0.72
+        : l.pointW * 5.5;                         // ~left quadrant width
+      const toastCX = l.isPortrait
+        ? l.boardX + l.boardW / 2                 // board horizontal center
+        : l.boardX + l.pointW * 2.8;              // left quarter of board
+      const toastMidY  = l.boardY + l.boardH / 2; // vertical center (checker gap)
+      const toastRowH  = Math.max(12, 14 * l.fontScale) + 14 + 4; // approx row height
+
+      // Info toast: current action prompt (blue)
+      let infoMsg = '';
+      if (state.phase === 'rollingForFirst') {
+        if (!state.initialRoll)                                         infoMsg = loc.rollForFirstPrompt;
+        else if (state.initialRoll.white === state.initialRoll.black)   infoMsg = loc.rollForFirstTie;
+        else infoMsg = state.currentPlayer === 'white' ? loc.rollForFirstWhiteFirst : loc.rollForFirstBlackFirst;
+      } else if (state.phase === 'waitingForRoll') {
+        const name = state.currentPlayer === 'white' ? loc.youTurn : loc.aiTurn;
+        infoMsg = `${name}: ${loc.clickRoll}`;
+      } else if (state.phase === 'playerActing') {
+        const name = state.currentPlayer === 'white' ? loc.youTurn : loc.aiTurn;
+        infoMsg = `${name}: ${loc.selectPiece}`;
+      } else if (state.phase === 'aiThinking') {
+        infoMsg = loc.aiThinking;
+      }
+
+      // If both toasts visible, stack them vertically around the center point
+      const hasError = !!state.errorMessage;
+      const hasInfo  = !!infoMsg;
+      const infoCY  = hasError && hasInfo
+        ? toastMidY - toastRowH / 2 - 2
+        : toastMidY;
+      const errorCY = hasError && hasInfo
+        ? toastMidY + toastRowH / 2 + 2
+        : toastMidY;
+
+      if (hasInfo) {
+        renderToast(this.ctx, infoMsg, toastCX, infoCY, toastMaxW, l.fontScale, 'info');
+      }
+      if (hasError) {
+        renderToast(this.ctx, state.errorMessage!, toastCX, errorCY, toastMaxW, l.fontScale, 'error');
+      }
+    }
 
     if (state.phase === 'gameOver' && state.winner) {
       this.renderWinScreen(state.winner);
@@ -1292,37 +1345,23 @@ export class CanvasRenderer {
     const msgCY = l.msgY + l.msgH / 2;
 
     const loc = t();
-    const playerColor = state.currentPlayer === 'white' ? '#f5f0e8' : '#8888cc';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
 
-    // Left: player status
+    // Left: player label (just the name, action prompt moved to top popup)
     ctx.font = `bold ${fontSize}px sans-serif`;
-    ctx.fillStyle = playerColor;
-    const playerName = state.currentPlayer === 'white' ? loc.youTurn : loc.aiTurn;
-    let statusMsg = '';
-    if (state.phase === 'rollingForFirst') {
-      ctx.fillStyle = '#aaccff';
-      if (!state.initialRoll) {
-        statusMsg = loc.rollForFirstPrompt;
-      } else if (state.initialRoll.white === state.initialRoll.black) {
-        statusMsg = loc.rollForFirstTie;
-      } else {
-        statusMsg = state.currentPlayer === 'white' ? loc.rollForFirstWhiteFirst : loc.rollForFirstBlackFirst;
-      }
-    } else if (state.phase === 'waitingForRoll')  { statusMsg = `${playerName}: ${loc.clickRoll}`; }
-    else if (state.phase === 'playerActing') { statusMsg = `${playerName}: ${loc.selectPiece}`; }
-    else if (state.phase === 'aiThinking')  { ctx.fillStyle = '#aaaacc'; statusMsg = loc.aiThinking; }
-    else if (state.phase === 'gameOver')    { ctx.fillStyle = COLORS.winText; statusMsg = state.winner === 'white' ? loc.youWin : loc.aiWins; }
-    ctx.fillText(statusMsg, 8, msgCY);
+    if (state.phase === 'gameOver') {
+      ctx.fillStyle = COLORS.winText;
+      ctx.fillText(state.winner === 'white' ? loc.youWin : loc.aiWins, 8, msgCY);
+    } else {
+      const playerColor = state.currentPlayer === 'white' ? '#f5f0e8' : '#8888cc';
+      ctx.fillStyle = playerColor;
+      ctx.fillText(state.currentPlayer === 'white' ? loc.youTurn : loc.aiTurn, 8, msgCY);
+    }
 
     // Right: dice remaining  |  save time  (no overlap with left text)
     ctx.textAlign = 'right';
-    if (state.errorMessage) {
-      ctx.font = `${smallFont}px sans-serif`;
-      ctx.fillStyle = COLORS.error;
-      ctx.fillText(state.errorMessage, this.width - 8, msgCY);
-    } else if (state.dice) {
+    if (state.dice) {
       ctx.font = `${smallFont}px sans-serif`;
       ctx.fillStyle = COLORS.textDim;
       ctx.fillText(`🎲 [${state.dice.remaining.join(', ')}]`, this.width - 8, msgCY);

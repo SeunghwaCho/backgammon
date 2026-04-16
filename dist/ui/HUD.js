@@ -75,28 +75,59 @@ function drawRoundRect(ctx, x, y, w, h, r) {
     ctx.quadraticCurveTo(x, y, x + r, y);
     ctx.closePath();
 }
-// Render a notification/toast message
-export function renderToast(ctx, message, canvasW, canvasH, fontScale) {
+const TOAST_STYLES = {
+    error: {
+        bg: 'rgba(30,10,10,0.92)',
+        border: '#ff5555',
+        highlight: 'rgba(255,100,100,0.12)',
+        text: '#ffcccc',
+    },
+    info: {
+        bg: 'rgba(10,20,40,0.88)',
+        border: '#4488cc',
+        highlight: 'rgba(80,140,220,0.12)',
+        text: '#aad4ff',
+    },
+};
+// Render a notification/toast message centered at (cx, cy) with a maximum width.
+export function renderToast(ctx, message, cx, cy, maxWidth, fontScale, variant = 'error') {
+    const style = TOAST_STYLES[variant];
     const fontSize = Math.max(12, 14 * fontScale);
-    ctx.font = `${fontSize}px sans-serif`;
+    ctx.font = `bold ${fontSize}px sans-serif`;
     const textW = ctx.measureText(message).width;
-    const padH = 10;
-    const padV = 6;
-    const boxW = textW + padH * 2;
+    const padH = 14;
+    const padV = 7;
+    const boxW = Math.min(textW + padH * 2, maxWidth);
     const boxH = fontSize + padV * 2;
-    const x = (canvasW - boxW) / 2;
-    const y = canvasH * 0.6;
-    ctx.fillStyle = 'rgba(20,20,40,0.85)';
-    drawRoundRect(ctx, x, y, boxW, boxH, 6);
+    const x = cx - boxW / 2;
+    const y = cy - boxH / 2;
+    // Drop shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    drawRoundRect(ctx, x + 2, y + 2, boxW, boxH, 8);
     ctx.fill();
-    ctx.strokeStyle = '#ff6b6b';
-    ctx.lineWidth = 1.5;
-    drawRoundRect(ctx, x, y, boxW, boxH, 6);
+    // Background
+    ctx.fillStyle = style.bg;
+    drawRoundRect(ctx, x, y, boxW, boxH, 8);
+    ctx.fill();
+    // Border
+    ctx.strokeStyle = style.border;
+    ctx.lineWidth = 2;
+    drawRoundRect(ctx, x, y, boxW, boxH, 8);
     ctx.stroke();
-    ctx.fillStyle = '#ff9999';
+    // Top highlight
+    ctx.fillStyle = style.highlight;
+    drawRoundRect(ctx, x + 1, y + 1, boxW - 2, boxH / 2, 7);
+    ctx.fill();
+    // Text (clip to maxWidth to avoid overflow)
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x + 4, y, boxW - 8, boxH);
+    ctx.clip();
+    ctx.fillStyle = style.text;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(message, canvasW / 2, y + boxH / 2);
+    ctx.fillText(message, cx, cy);
+    ctx.restore();
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
 }
