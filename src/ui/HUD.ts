@@ -53,8 +53,8 @@ export function renderButtons(
 
     if (btn.emoji && btn.text) {
       // Two-line layout
-      const emojiSize = Math.max(16, Math.min(22, btn.h * 0.48));
-      const textSize  = Math.max(9,  Math.min(12, btn.h * 0.27));
+      const emojiSize = Math.max(16, Math.min(36, btn.h * 0.48));
+      const textSize  = Math.max(9,  Math.min(18, btn.h * 0.27));
       // vertical split: emoji center at 38% from top, text center at 78%
       const emojiY = btn.y + btn.h * 0.40;
       const textY  = btn.y + btn.h * 0.80;

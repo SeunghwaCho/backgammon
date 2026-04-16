@@ -88,8 +88,8 @@ export class InputController {
 
     // ── Roll Dice button: overlaid on the board center (same area as the dice) ──
     // Wider/taller than HUD buttons so it's easy to click in the middle of the board.
-    const rollBtnW = Math.min(120, canvasW * 0.18);
-    const rollBtnH = Math.min(60, layout.boardH * 0.18);
+    const rollBtnW = Math.min(180, canvasW * 0.26);
+    const rollBtnH = Math.min(90, layout.boardH * 0.28);
     const rollBtnCX = layout.isPortrait
       ? layout.boardX + layout.boardW / 2
       : layout.boardX + layout.boardW * 0.625;   // right of center (mirrors dice placement)
