@@ -94,6 +94,24 @@ interface DiceRollAnimState {
   duration: number;
 }
 
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+interface DiceClusterPlacement {
+  diceX: number;
+  diceY: number;
+  diceSize: number;
+  padding: number;
+  cubeX: number;
+  cubeY: number;
+  cubeSize: number;
+  cubeGap: number;
+}
+
 export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D;
   private width: number = 800;
@@ -105,6 +123,9 @@ export class CanvasRenderer {
 
   private animSystem = new AnimationSystem();
   private diceRollAnim: DiceRollAnimState | null = null;
+  private cubeHitBox: Rect | null = null;
+  private cubeTooltipHovered = false;
+  private cubeTooltipPinned = false;
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
@@ -232,23 +253,76 @@ export class CanvasRenderer {
    * final values.  The rAF loop (startAnimLoop in main.ts) must be started
    * by the caller.
    */
-  /** Compute the top-left origin and size for the two-dice display. */
-  private dicePlacement(): { diceX: number; diceY: number; diceSize: number } | null {
+  /** Compute the shared layout for the doubling cube + two-dice display. */
+  private dicePlacement(): DiceClusterPlacement | null {
     if (!this.layout) return null;
     const l = this.layout;
     const diceSize = Math.min(72, l.checkerR * 3.6, 88) * l.fontScale;
-    const padding  = 10;
-    const totalW   = diceSize * 2 + padding;
-    let diceX: number, diceY: number;
+    const padding  = Math.max(8, diceSize * 0.14);
+    const cubeSize = Math.max(26, Math.min(diceSize * 0.72, 52 * l.fontScale));
+    const cubeGap  = Math.max(10, diceSize * 0.16);
+    const clusterW = cubeSize + cubeGap + diceSize * 2 + padding;
+    const margin   = Math.max(8, l.pointW * 0.35);
 
-    if (l.isPortrait) {
-      diceX = l.boardX + l.boardW / 2 + (l.boardW / 2 - totalW) / 2;
+    const preferredX = l.isPortrait
+      ? l.boardX + l.boardW * 0.57
+      : l.boardX + l.boardW * 0.60;
+    const minX = l.isPortrait
+      ? l.boardX + l.boardW * 0.46
+      : l.boardX + l.boardW * 0.50;
+    const rightLimit = l.boardX + l.boardW - clusterW - margin;
+
+    let clusterX: number;
+    if (rightLimit <= minX) {
+      clusterX = Math.max(l.boardX + margin, rightLimit);
     } else {
-      diceX = l.barX + (l.barW - totalW) / 2;
+      clusterX = clamp(preferredX, minX, rightLimit);
     }
-    diceY = l.boardY + l.boardH / 2 - diceSize / 2;
 
-    return { diceX, diceY, diceSize };
+    const centerY = l.boardY + l.boardH / 2;
+    const diceY = centerY - diceSize / 2;
+    const cubeY = centerY - cubeSize / 2;
+
+    return {
+      diceX: clusterX + cubeSize + cubeGap,
+      diceY,
+      diceSize,
+      padding,
+      cubeX: clusterX,
+      cubeY,
+      cubeSize,
+      cubeGap,
+    };
+  }
+
+  isPointInDoublingCube(sx: number, sy: number): boolean {
+    const b = this.cubeHitBox;
+    return !!b && sx >= b.x && sx <= b.x + b.w && sy >= b.y && sy <= b.y + b.h;
+  }
+
+  setCubeTooltipHovered(hovered: boolean): boolean {
+    if (this.cubeTooltipHovered === hovered) return false;
+    this.cubeTooltipHovered = hovered;
+    return true;
+  }
+
+  toggleCubeTooltipPinned(): boolean {
+    this.cubeTooltipPinned = !this.cubeTooltipPinned;
+    if (!this.cubeTooltipPinned) {
+      this.cubeTooltipHovered = false;
+    }
+    return true;
+  }
+
+  hideCubeTooltip(): boolean {
+    if (!this.cubeTooltipHovered && !this.cubeTooltipPinned) return false;
+    this.cubeTooltipHovered = false;
+    this.cubeTooltipPinned = false;
+    return true;
+  }
+
+  private isCubeTooltipVisible(): boolean {
+    return this.cubeTooltipHovered || this.cubeTooltipPinned;
   }
 
   queueDiceRoll(val1: number, val2: number): void {
@@ -583,6 +657,7 @@ export class CanvasRenderer {
     if (!this.layout) return;
     const ctx = this.ctx;
     const l = this.layout;
+    this.cubeHitBox = null;
 
     ctx.clearRect(0, 0, this.width, this.height);
 
@@ -1174,20 +1249,15 @@ export class CanvasRenderer {
   private drawDoublingCube(state: GameState): void {
     if (!this.layout) return;
     const cube = state.cube;
-    // Only show cube when value > 1 or it's centered (available to use)
     const l = this.layout;
     const ctx = this.ctx;
+    const placement = this.dicePlacement();
+    if (!placement) return;
 
-    const size = Math.min(28, l.checkerR * 1.4) * l.fontScale;
-    let cx: number, cy: number;
-
-    if (l.isPortrait) {
-      cx = l.boardX + l.boardW * 0.78;
-      cy = l.boardY + l.boardH / 2;
-    } else {
-      cx = l.barX + l.barW / 2;
-      cy = l.boardY + l.boardH / 2 + size * 1.4;
-    }
+    const size = placement.cubeSize;
+    const cx = placement.cubeX + size / 2;
+    const cy = placement.cubeY + size / 2;
+    const loc = t();
 
     // Background color based on ownership
     let bgColor = '#d4a020';  // gold = centered
@@ -1207,6 +1277,13 @@ export class CanvasRenderer {
     ctx.lineWidth = 1.5;
     roundRect(ctx, cx - size / 2, cy - size / 2, size, size, 4);
     ctx.stroke();
+
+    const labelFont = Math.max(8, size * 0.32);
+    ctx.font = `bold ${labelFont}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = COLORS.textLight;
+    ctx.fillText(loc.cubeLabel, cx, cy - size / 2 - 7);
 
     // Value label
     const valStr = String(cube.value);
@@ -1232,16 +1309,73 @@ export class CanvasRenderer {
       ctx.fill();
     }
 
-    // "×N" label if cube has been used
-    if (cube.value > 1) {
-      const labelFont = Math.max(7, size * 0.35);
-      ctx.font = `${labelFont}px sans-serif`;
-      ctx.fillStyle = 'rgba(255,220,80,0.9)';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillText(`×${cube.value}`, cx, cy + size / 2 + labelFont + 2);
+    const multFont = Math.max(7, size * 0.35);
+    ctx.font = `${multFont}px sans-serif`;
+    ctx.fillStyle = 'rgba(255,220,80,0.9)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(`×${cube.value}`, cx, cy + size / 2 + multFont + 3);
+
+    this.cubeHitBox = {
+      x: cx - size / 2 - 8,
+      y: cy - size / 2 - labelFont - 12,
+      w: size + 16,
+      h: size + labelFont + multFont + 24,
+    };
+
+    if (this.isCubeTooltipVisible()) {
+      this.drawCubeTooltip(loc.cubeTooltip.replace('{v}', String(cube.value)), this.cubeHitBox);
     }
 
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  private drawCubeTooltip(message: string, cubeRect: Rect): void {
+    if (!this.layout) return;
+    const l = this.layout;
+    const ctx = this.ctx;
+    const fontSize = Math.max(10, 11 * l.fontScale);
+    const padX = 8;
+    const padY = 5;
+
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    const boxW = ctx.measureText(message).width + padX * 2;
+    const boxH = fontSize + padY * 2;
+
+    const minX = l.boardX + 6;
+    const maxX = l.boardX + l.boardW - boxW - 6;
+    const minY = l.boardY + 6;
+    const maxY = l.boardY + l.boardH - boxH - 6;
+
+    let x = cubeRect.x - boxW - 10;
+    let y = cubeRect.y + cubeRect.h / 2 - boxH / 2;
+
+    if (x < minX) {
+      x = Math.min(cubeRect.x + cubeRect.w + 10, maxX);
+    }
+    y = clamp(y, minY, maxY);
+
+    if (rectsOverlap({ x, y, w: boxW, h: boxH }, cubeRect)) {
+      x = clamp(cubeRect.x + cubeRect.w / 2 - boxW / 2, minX, maxX);
+      y = cubeRect.y - boxH - 10;
+      if (y < minY) {
+        y = Math.min(cubeRect.y + cubeRect.h + 10, maxY);
+      }
+    }
+
+    ctx.fillStyle = 'rgba(10,20,40,0.92)';
+    roundRect(ctx, x, y, boxW, boxH, 6);
+    ctx.fill();
+    ctx.strokeStyle = '#6aa6ff';
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, x, y, boxW, boxH, 6);
+    ctx.stroke();
+
+    ctx.fillStyle = '#dcecff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(message, x + boxW / 2, y + boxH / 2 + 1);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
   }
@@ -1285,7 +1419,8 @@ export class CanvasRenderer {
       this.drawDie(x, diceY, diceSize, val, isWhite, used);
     });
 
-    // For doubles, show remaining sub-moves as a badge to the LEFT of the dice
+    // For doubles, show remaining sub-moves away from the cube so the fold/narrow
+    // layouts do not stack the badge on top of the cube.
     if (state.dice.values[0] === state.dice.values[1]) {
       const fontSize = Math.max(10, 12 * l.fontScale);
       const label = `×${state.dice.remaining.length}`;
@@ -1294,8 +1429,16 @@ export class CanvasRenderer {
       const padX = 5, padY = 3;
       const badgeW = textW + padX * 2;
       const badgeH = fontSize + padY * 2;
-      const badgeX = diceX - badgeW - 8;                    // 8px gap left of die 1
-      const badgeY = diceY + diceSize / 2 - badgeH / 2;    // vertically centered on dice
+      const rightBadgeX = diceX + diceSize * 2 + padding + 8;
+      const rightLimit = l.boardX + l.boardW - badgeW - 8;
+      let badgeX = rightBadgeX;
+      let badgeY = diceY + diceSize / 2 - badgeH / 2;
+
+      if (badgeX > rightLimit) {
+        badgeX = clamp(diceX + (diceSize * 2 + padding - badgeW) / 2, l.boardX + 8, rightLimit);
+        badgeY = Math.min(l.boardY + l.boardH - badgeH - 8, diceY + diceSize + 8);
+      }
+
       // Badge background
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
       roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 4);
@@ -1685,6 +1828,17 @@ function lightenColor(hex: string, amount: number): string {
   const g = Math.min(255, ((num >> 8) & 0xff) + amount);
   const b = Math.min(255, (num & 0xff) + amount);
   return `rgb(${r},${g},${b})`;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function rectsOverlap(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.w &&
+    a.x + a.w > b.x &&
+    a.y < b.y + b.h &&
+    a.y + a.h > b.y;
 }
 
 function formatTime(ts: number): string {

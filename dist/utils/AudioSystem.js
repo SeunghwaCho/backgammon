@@ -155,6 +155,78 @@ export class AudioSystem {
             this.tone(f, 'sine', t + i * 0.22, 0.40, 0.24, 0.01);
         });
     }
+    /** Doubling cube is offered or accepted — weighty thud + rising pitch. */
+    playDouble() {
+        const ctx = this.acquire();
+        if (!ctx)
+            return;
+        const t = ctx.currentTime;
+        // Heavy wooden thud
+        this.tone(120, 'sine', t, 0.18, 0.55, 0.005);
+        this.tone(240, 'triangle', t + 0.03, 0.12, 0.38, 0.005);
+        this.noise(0.06, t, 0.28, 0.05, 400, 0.6);
+        // Rising "doubling" effect
+        if (this.ctx && this.out) {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(280, t + 0.06);
+            osc.frequency.exponentialRampToValueAtTime(560, t + 0.28);
+            gain.gain.setValueAtTime(0, t + 0.06);
+            gain.gain.linearRampToValueAtTime(0.22, t + 0.10);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+            osc.connect(gain);
+            gain.connect(this.out);
+            osc.start(t + 0.06);
+            osc.stop(t + 0.34);
+        }
+    }
+    /** Decliner concedes — descending "surrender" phrase. */
+    playDecline() {
+        const ctx = this.acquire();
+        if (!ctx)
+            return;
+        const t = ctx.currentTime;
+        // Short descending two-note phrase
+        this.tone(330, 'sine', t, 0.22, 0.28, 0.01);
+        this.tone(220, 'sine', t + 0.18, 0.28, 0.24, 0.01);
+        this.noise(0.08, t + 0.02, 0.12, 0.07, 600, 0.7);
+    }
+    /** Match is completely won — extended grand fanfare. */
+    playMatchWin() {
+        const ctx = this.acquire();
+        if (!ctx)
+            return;
+        const t = ctx.currentTime;
+        // Ascending arpeggio then full chord + bell shimmer
+        const arpNotes = [523, 659, 784, 1047, 1319];
+        arpNotes.forEach((f, i) => {
+            this.tone(f, 'triangle', t + i * 0.12, 0.55, 0.32, 0.01);
+        });
+        // Sustained chord
+        [523, 659, 784].forEach(f => {
+            this.tone(f, 'sine', t + 0.72, 1.2, 0.18, 0.04);
+        });
+        // Shimmer on top
+        [2093, 2637].forEach(f => {
+            this.tone(f, 'sine', t + 0.70, 0.60, 0.06, 0.02);
+        });
+    }
+    /** Gammon or backgammon win — win fanfare + extra triumphant accent. */
+    playGammonWin() {
+        const ctx = this.acquire();
+        if (!ctx)
+            return;
+        const t = ctx.currentTime;
+        // Standard win arpeggio
+        [523, 659, 784, 1047].forEach((f, i) => {
+            this.tone(f, 'triangle', t + i * 0.14, 0.48, 0.30, 0.01);
+        });
+        // Extra accent: higher octave punch
+        this.tone(2093, 'sine', t + 0.60, 0.28, 0.14, 0.01);
+        this.tone(1047, 'triangle', t + 0.65, 0.60, 0.50, 0.03);
+        this.tone(784, 'sine', t + 0.65, 0.60, 0.50, 0.03);
+    }
     /** Subtle UI click feedback. */
     playButtonClick() {
         const ctx = this.acquire();

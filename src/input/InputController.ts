@@ -2,8 +2,7 @@
 
 import { GameState, Move } from '../game/Types.js';
 import { CanvasRenderer } from '../render/CanvasRenderer.js';
-import { barIndex } from '../game/GameState.js';
-import { getSelectablePoints, getMovesFromPoint } from '../game/MoveGenerator.js';
+import { getSelectablePoints } from '../game/MoveGenerator.js';
 import { canOfferDouble } from '../game/Reducer.js';
 import { t } from '../i18n/Locale.js';
 import { audioSystem } from '../utils/AudioSystem.js';
@@ -42,17 +41,20 @@ export class InputController {
   private canvas: HTMLCanvasElement;
   private renderer: CanvasRenderer;
   private onAction: (action: InputAction) => void;
+  private onUiChange: () => void;
   private buttons: ButtonArea[] = [];
   private currentState: GameState | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
     renderer: CanvasRenderer,
-    onAction: (action: InputAction) => void
+    onAction: (action: InputAction) => void,
+    onUiChange: () => void
   ) {
     this.canvas = canvas;
     this.renderer = renderer;
     this.onAction = onAction;
+    this.onUiChange = onUiChange;
 
     this.setupEventListeners();
     this.setupButtons();
@@ -65,6 +67,8 @@ export class InputController {
 
   private setupEventListeners(): void {
     this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+    this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+    this.canvas.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
     this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), {
       passive: false,
     });
@@ -80,7 +84,7 @@ export class InputController {
   }
 
   // Update button layout based on current canvas/HUD dimensions
-  updateLayout(canvasW: number, canvasH: number): void {
+  updateLayout(canvasW: number, _canvasH: number): void {
     const layout = this.renderer.getLayout();
     if (!layout) return;
 
@@ -270,6 +274,20 @@ export class InputController {
     this.handleClick(x, y);
   }
 
+  private handleMouseMove(e: MouseEvent): void {
+    const { x, y } = this.getCanvasCoords(e);
+    const hovered = this.renderer.isPointInDoublingCube(x, y);
+    if (this.renderer.setCubeTooltipHovered(hovered)) {
+      this.onUiChange();
+    }
+  }
+
+  private handleMouseLeave(): void {
+    if (this.renderer.setCubeTooltipHovered(false)) {
+      this.onUiChange();
+    }
+  }
+
   private handleTouchStart(e: TouchEvent): void {
     e.preventDefault();
     if (e.touches.length > 0) {
@@ -284,10 +302,19 @@ export class InputController {
   }
 
   private handleClick(x: number, y: number): void {
+    if (this.renderer.isPointInDoublingCube(x, y)) {
+      this.renderer.toggleCubeTooltipPinned();
+      this.onUiChange();
+      return;
+    }
+
+    const hidTooltip = this.renderer.hideCubeTooltip();
+
     // Check button clicks first; only fire if currently visible
     for (const btn of this.buttons) {
       if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
         if (this.currentState && !btn.visible(this.currentState)) continue;
+        if (hidTooltip) this.onUiChange();
         audioSystem.playButtonClick();
         this.onAction(btn.action);
         return;
@@ -298,8 +325,12 @@ export class InputController {
     // We'll handle this via the point hit test
     const pointIndex = this.renderer.hitTest(x, y);
     if (pointIndex !== null) {
+      if (hidTooltip) this.onUiChange();
       this.onAction({ type: 'selectPoint', pointIndex });
+      return;
     }
+
+    if (hidTooltip) this.onUiChange();
   }
 
   // Called by main.ts with current state to process a point selection
@@ -309,8 +340,6 @@ export class InputController {
   ): InputAction | null {
     if (state.phase !== 'playerActing') return null;
 
-    const player = state.currentPlayer;
-    const barIdx = barIndex(player);
 
     // If clicking the same selected point, deselect
     if (state.selectedPoint === pointIndex) {

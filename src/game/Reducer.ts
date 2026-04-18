@@ -39,7 +39,7 @@ export function rollDice(state: GameState, d1: number, d2: number): GameState {
   if (!hasLegalMoves) {
     // No legal moves - must pass turn
     next.phase = 'waitingForRoll';
-    next.errorMessage = 'No legal moves. Turn passed.';
+    next.errorMessage = '합법적인 수가 없습니다. 턴을 넘깁니다.';
     // Switch to next player
     return endTurn(next);
   }

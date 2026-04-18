@@ -79,6 +79,7 @@ export interface LocaleStrings {
   youDoubled: string;
   aiAcceptedDouble: string;
   cubeLabel: string;
+  cubeTooltip: string;
 
   // Match score
   matchScore: string;
@@ -163,6 +164,7 @@ const KO: LocaleStrings = {
   youDoubled: '더블! AI가 수락했습니다 (×{v})',
   aiAcceptedDouble: 'AI가 더블을 수락했습니다',
   cubeLabel: '큐브',
+  cubeTooltip: '더블링 큐브 ×{v}',
 
   matchScore: '매치',
   matchOf: '/{t}',
@@ -244,6 +246,7 @@ const EN: LocaleStrings = {
   youDoubled: 'Doubled! AI accepted (×{v})',
   aiAcceptedDouble: 'AI accepted the double',
   cubeLabel: 'Cube',
+  cubeTooltip: 'Doubling Cube ×{v}',
 
   matchScore: 'Match',
   matchOf: '/{t}',

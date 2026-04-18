@@ -1,7 +1,7 @@
 // SaveValidation: validates save data before loading
 // Rejects corrupt, partial, or version-mismatched saves
-export const SCHEMA_VERSION = 1;
-export const APP_VERSION = '1.0.0';
+export const SCHEMA_VERSION = 2;
+export const APP_VERSION = '1.1.0';
 function err(errors, msg) {
     errors.push(msg);
 }
@@ -13,11 +13,11 @@ export function validateSaveData(data) {
         return { valid: false, errors };
     }
     const d = data;
-    // Schema version check
+    // Schema version check — v1 saves are migrated on load, not rejected
     if (typeof d.schemaVersion !== 'number') {
         err(errors, 'Missing or invalid schemaVersion');
     }
-    else if (d.schemaVersion !== SCHEMA_VERSION) {
+    else if (d.schemaVersion !== SCHEMA_VERSION && d.schemaVersion !== 1) {
         err(errors, `Schema version mismatch: expected ${SCHEMA_VERSION}, got ${d.schemaVersion}`);
     }
     // Timestamp
@@ -92,7 +92,8 @@ function validateGameState(gs, errors) {
     }
     // Phase
     const validPhases = [
-        'rollingForFirst', 'waitingForRoll', 'playerActing', 'aiThinking', 'gameOver',
+        'rollingForFirst', 'waitingForRoll', 'playerActing', 'aiThinking',
+        'playerDecidingDouble', 'gameOver',
     ];
     if (!validPhases.includes(gs.phase)) {
         err(errors, `phase invalid: ${gs.phase}`);

@@ -1,19 +1,27 @@
 // InputController: handles mouse and touch events, maps them to game actions
-import { barIndex } from '../game/GameState.js';
 import { getSelectablePoints } from '../game/MoveGenerator.js';
+import { canOfferDouble } from '../game/Reducer.js';
 import { t } from '../i18n/Locale.js';
 import { audioSystem } from '../utils/AudioSystem.js';
 export class InputController {
-    constructor(canvas, renderer, onAction) {
+    constructor(canvas, renderer, onAction, onUiChange) {
         this.buttons = [];
+        this.currentState = null;
         this.canvas = canvas;
         this.renderer = renderer;
         this.onAction = onAction;
+        this.onUiChange = onUiChange;
         this.setupEventListeners();
         this.setupButtons();
     }
+    /** Called before each render so click handlers can check button visibility. */
+    setState(state) {
+        this.currentState = state;
+    }
     setupEventListeners() {
         this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+        this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+        this.canvas.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
         this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), {
             passive: false,
         });
@@ -27,7 +35,7 @@ export class InputController {
         // We'll define them by role and compute position in updateButtonLayout
     }
     // Update button layout based on current canvas/HUD dimensions
-    updateLayout(canvasW, canvasH) {
+    updateLayout(canvasW, _canvasH) {
         const layout = this.renderer.getLayout();
         if (!layout)
             return;
@@ -59,12 +67,38 @@ export class InputController {
             text: loc.btnRollText,
             visible: (s) => (s.phase === 'waitingForRoll' && s.currentPlayer === 'white') || s.phase === 'rollingForFirst',
         };
+        const doubleBtnW = Math.min(80, canvasW * 0.12);
+        const doubleBtnH = Math.min(52, layout.boardH * 0.17);
+        const doubleBtn = {
+            x: rollBtnCX - rollBtnW / 2 - doubleBtnW - 8,
+            y: rollBtnCY - doubleBtnH / 2,
+            w: doubleBtnW,
+            h: doubleBtnH,
+            action: { type: 'offerDouble' },
+            label: loc.btnDoubleText,
+            emoji: loc.btnDoubleEmoji,
+            text: loc.btnDoubleText,
+            visible: (s) => canOfferDouble(s) && s.currentPlayer === 'white',
+        };
+        const nextGameBtnW = Math.min(160, canvasW * 0.22);
+        const nextGameBtnH = Math.min(52, layout.boardH * 0.17);
+        const nextGameBtn = {
+            x: layout.boardX + layout.boardW / 2 - nextGameBtnW / 2,
+            y: layout.boardY + layout.boardH / 2 + 30,
+            w: nextGameBtnW,
+            h: nextGameBtnH,
+            action: { type: 'nextGame' },
+            label: loc.nextGameBtn,
+            emoji: '▶',
+            text: loc.nextGameBtn,
+            visible: (s) => s.phase === 'gameOver' && !s.match.matchOver,
+        };
         if (layout.isPortrait) {
             // Portrait: 4 equal buttons across full width (roll moved to board center)
             const totalMargin = margin * 5;
             const btnW = Math.floor((canvasW - totalMargin) / 4);
             this.buttons = [
-                rollBtn,
+                rollBtn, doubleBtn, nextGameBtn,
                 {
                     x: margin,
                     y: btnY,
@@ -117,7 +151,7 @@ export class InputController {
             const smallW = Math.min(72, canvasW * 0.1);
             const rightEdge = canvasW - margin;
             this.buttons = [
-                rollBtn,
+                rollBtn, doubleBtn, nextGameBtn,
                 {
                     x: rightEdge - btnW * 2 - smallW * 2 - margin * 3,
                     y: btnY,
@@ -180,6 +214,18 @@ export class InputController {
         const { x, y } = this.getCanvasCoords(e);
         this.handleClick(x, y);
     }
+    handleMouseMove(e) {
+        const { x, y } = this.getCanvasCoords(e);
+        const hovered = this.renderer.isPointInDoublingCube(x, y);
+        if (this.renderer.setCubeTooltipHovered(hovered)) {
+            this.onUiChange();
+        }
+    }
+    handleMouseLeave() {
+        if (this.renderer.setCubeTooltipHovered(false)) {
+            this.onUiChange();
+        }
+    }
     handleTouchStart(e) {
         e.preventDefault();
         if (e.touches.length > 0) {
@@ -192,9 +238,20 @@ export class InputController {
         // Already handled on touchstart
     }
     handleClick(x, y) {
-        // Check button clicks first
+        if (this.renderer.isPointInDoublingCube(x, y)) {
+            this.renderer.toggleCubeTooltipPinned();
+            this.onUiChange();
+            return;
+        }
+        const hidTooltip = this.renderer.hideCubeTooltip();
+        // Check button clicks first; only fire if currently visible
         for (const btn of this.buttons) {
             if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+                if (this.currentState && !btn.visible(this.currentState))
+                    continue;
+                if (hidTooltip)
+                    this.onUiChange();
+                audioSystem.playButtonClick();
                 this.onAction(btn.action);
                 return;
             }
@@ -203,15 +260,18 @@ export class InputController {
         // We'll handle this via the point hit test
         const pointIndex = this.renderer.hitTest(x, y);
         if (pointIndex !== null) {
+            if (hidTooltip)
+                this.onUiChange();
             this.onAction({ type: 'selectPoint', pointIndex });
+            return;
         }
+        if (hidTooltip)
+            this.onUiChange();
     }
     // Called by main.ts with current state to process a point selection
     processPointClick(pointIndex, state) {
         if (state.phase !== 'playerActing')
             return null;
-        const player = state.currentPlayer;
-        const barIdx = barIndex(player);
         // If clicking the same selected point, deselect
         if (state.selectedPoint === pointIndex) {
             return { type: 'selectPoint', pointIndex: -1 }; // deselect

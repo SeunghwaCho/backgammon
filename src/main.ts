@@ -30,7 +30,6 @@ import {
 import { rollTwoDice } from './utils/random.js';
 import { getPipCount } from './game/Rules.js';
 import { toggleLang, onLangChange, t } from './i18n/Locale.js';
-import { ANIM_MOVE_MS } from './render/AnimationSystem.js';
 import { audioSystem } from './utils/AudioSystem.js';
 
 // ─── App State ────────────────────────────────────────────────────────────────
@@ -134,7 +133,7 @@ async function init(): Promise<void> {
   });
 
   // Setup input controller
-  inputController = new InputController(canvas, renderer, handleAction);
+  inputController = new InputController(canvas, renderer, handleAction, render);
 
   // Initial resize
   resizeCanvas();
@@ -519,7 +518,7 @@ async function handleClearSave(): Promise<void> {
 // ─── Sound Helpers ────────────────────────────────────────────────────────────
 
 // Play the appropriate game-over sound based on outcome
-function playGameOverSound(state: GameState, perspective: 'player' | 'ai' = 'player'): void {
+function playGameOverSound(state: GameState, _perspective: 'player' | 'ai' = 'player'): void {
   const isPlayerWin = state.winner === 'white';
   if (isPlayerWin) {
     if (state.match.matchOver) {
@@ -827,14 +826,13 @@ function renderStartupPrompt(): void {
   const fontScale = layout?.fontScale ?? 1;
 
   // Render restore prompt overlay
-  const result = renderRestorePrompt(
+  restoreButtons = renderRestorePrompt(
     ctx,
     canvas.clientWidth,
     canvas.clientHeight,
     savedData.timestamp,
     fontScale
   );
-  restoreButtons = result;
 
   // Override action handler for prompt buttons
   canvas.onclick = null;
@@ -934,7 +932,7 @@ function setupStartupClickInterceptor(): void {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    if (confirmingNewGame || confirmingClearSave) { handleConfirmClick(x, y); return; }
+    if (confirmingNewGame || confirmingClearSave || showingDoubleOffer) { handleConfirmClick(x, y); return; }
     if (startupPhase === 'promptRestore') handleStartupClick(x, y);
   });
 
@@ -944,7 +942,7 @@ function setupStartupClickInterceptor(): void {
     const rect = canvas.getBoundingClientRect();
     const x = e.touches[0].clientX - rect.left;
     const y = e.touches[0].clientY - rect.top;
-    if (confirmingNewGame || confirmingClearSave) { handleConfirmClick(x, y); return; }
+    if (confirmingNewGame || confirmingClearSave || showingDoubleOffer) { handleConfirmClick(x, y); return; }
     if (startupPhase === 'promptRestore') handleStartupClick(x, y);
   }, { passive: false });
 }
