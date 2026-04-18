@@ -302,15 +302,10 @@ export class InputController {
   }
 
   private handleClick(x: number, y: number): void {
-    if (this.renderer.isPointInDoublingCube(x, y)) {
-      this.renderer.toggleCubeTooltipPinned();
-      this.onUiChange();
-      return;
-    }
-
     const hidTooltip = this.renderer.hideCubeTooltip();
 
-    // Check button clicks first; only fire if currently visible
+    // Check button clicks first; buttons take priority over the doubling cube
+    // hit area (they can overlap in compact layouts).
     for (const btn of this.buttons) {
       if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
         if (this.currentState && !btn.visible(this.currentState)) continue;
@@ -319,6 +314,13 @@ export class InputController {
         this.onAction(btn.action);
         return;
       }
+    }
+
+    // Doubling cube tooltip toggle (only if no button was hit)
+    if (this.renderer.isPointInDoublingCube(x, y)) {
+      this.renderer.toggleCubeTooltipPinned();
+      this.onUiChange();
+      return;
     }
 
     // Board clicks - need state from outside; emit a raw coordinate event
