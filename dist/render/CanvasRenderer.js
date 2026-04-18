@@ -175,14 +175,11 @@ export class CanvasRenderer {
         const totalW = diceSize * 2 + padding;
         let diceX, diceY;
         if (l.isPortrait) {
-            // Portrait: horizontal center of the board
-            diceX = l.boardX + (l.boardW - totalW) / 2;
+            diceX = l.boardX + l.boardW / 2 + (l.boardW / 2 - totalW) / 2;
         }
         else {
-            // Landscape: right of center (toasts sit in the left quarter)
-            diceX = l.boardX + l.boardW / 2 + (l.boardW / 4 - totalW) / 2;
+            diceX = l.barX + (l.barW - totalW) / 2;
         }
-        // Both modes: vertical center of the board (checker-free middle strip)
         diceY = l.boardY + l.boardH / 2 - diceSize / 2;
         return { diceX, diceY, diceSize };
     }
@@ -527,10 +524,10 @@ export class CanvasRenderer {
             // The gap between them (boardH * 0.16) is safe. We center toasts there.
             // In portrait mode, use the horizontal center of the board instead.
             const toastMaxW = l.isPortrait
-                ? l.boardW * 0.72
+                ? l.boardW * 0.46 // left half only (dice occupy right half)
                 : l.pointW * 5.5; // ~left quadrant width
             const toastCX = l.isPortrait
-                ? l.boardX + l.boardW / 2 // board horizontal center
+                ? l.boardX + l.boardW * 0.23 // left quarter of board (away from dice)
                 : l.boardX + l.pointW * 2.8; // left quarter of board
             const toastMidY = l.boardY + l.boardH / 2; // vertical center (checker gap)
             const toastRowH = Math.max(12, 14 * l.fontScale) + 14 + 4; // approx row height

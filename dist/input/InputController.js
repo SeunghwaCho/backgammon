@@ -47,7 +47,7 @@ export class InputController {
         const rollBtnCX = layout.isPortrait
             ? layout.boardX + layout.boardW / 2
             : layout.boardX + layout.boardW * 0.625; // right of center (mirrors dice placement)
-        const rollBtnCY = layout.boardY + layout.boardH / 2;
+        const rollBtnCY = layout.boardY + layout.boardH / 2 - rollBtnH / 2 - 12;
         const rollBtn = {
             x: rollBtnCX - rollBtnW / 2,
             y: rollBtnCY - rollBtnH / 2,
