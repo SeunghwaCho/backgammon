@@ -1285,13 +1285,25 @@ export class CanvasRenderer {
       this.drawDie(x, diceY, diceSize, val, isWhite, used);
     });
 
-    // For doubles, show remaining count
+    // For doubles, show remaining sub-moves as a badge to the LEFT of the dice
     if (state.dice.values[0] === state.dice.values[1]) {
-      const fontSize = Math.max(9, 11 * l.fontScale);
-      ctx.font = `${fontSize}px sans-serif`;
+      const fontSize = Math.max(10, 12 * l.fontScale);
+      const label = `×${state.dice.remaining.length}`;
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      const textW = ctx.measureText(label).width;
+      const padX = 5, padY = 3;
+      const badgeW = textW + padX * 2;
+      const badgeH = fontSize + padY * 2;
+      const badgeX = diceX - badgeW - 8;                    // 8px gap left of die 1
+      const badgeY = diceY + diceSize / 2 - badgeH / 2;    // vertically centered on dice
+      // Badge background
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 4);
+      ctx.fill();
+      // Badge text
       ctx.fillStyle = COLORS.textLight;
-      ctx.textAlign = 'left';
-      ctx.fillText(`×${state.dice.remaining.length}`, diceX, diceY + diceSize + 16);
+      ctx.textAlign = 'center';
+      ctx.fillText(label, badgeX + badgeW / 2, badgeY + padY + fontSize * 0.85);
     }
   }
 

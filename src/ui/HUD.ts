@@ -114,7 +114,27 @@ const TOAST_STYLES: Record<ToastVariant, {
   },
 };
 
+// Break a message into lines that fit within maxWidth.
+function wrapText(ctx: CanvasRenderingContext2D, message: string, maxWidth: number): string[] {
+  const words = message.split(/\s+/);
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (ctx.measureText(candidate).width <= maxWidth) {
+      line = candidate;
+    } else {
+      if (line) lines.push(line);
+      // If a single word exceeds maxWidth, push it as-is (no infinite loop)
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.length > 0 ? lines : [message];
+}
+
 // Render a notification/toast message centered at (cx, cy) with a maximum width.
+// Text wraps to multiple lines when it exceeds maxWidth.
 export function renderToast(
   ctx: CanvasRenderingContext2D,
   message: string,
@@ -127,11 +147,17 @@ export function renderToast(
   const style = TOAST_STYLES[variant];
   const fontSize = Math.max(12, 14 * fontScale);
   ctx.font = `bold ${fontSize}px sans-serif`;
-  const textW = ctx.measureText(message).width;
   const padH = 14;
   const padV = 7;
-  const boxW = Math.min(textW + padH * 2, maxWidth);
-  const boxH = fontSize + padV * 2;
+  const lineH = fontSize + 4;
+
+  // Wrap text to fit maxWidth
+  const innerW = Math.max(maxWidth - padH * 2, 40);
+  const lines = wrapText(ctx, message, innerW);
+
+  const maxLineW = Math.max(...lines.map(l => ctx.measureText(l).width));
+  const boxW = Math.min(maxLineW + padH * 2, maxWidth);
+  const boxH = lines.length * lineH + padV * 2;
   const x = cx - boxW / 2;
   const y = cy - boxH / 2;
 
@@ -156,16 +182,15 @@ export function renderToast(
   drawRoundRect(ctx, x + 1, y + 1, boxW - 2, boxH / 2, 7);
   ctx.fill();
 
-  // Text (clip to maxWidth to avoid overflow)
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(x + 4, y, boxW - 8, boxH);
-  ctx.clip();
+  // Lines of text
   ctx.fillStyle = style.text;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(message, cx, cy);
-  ctx.restore();
+  lines.forEach((line, i) => {
+    const lineY = y + padV + lineH * i + lineH / 2;
+    ctx.fillText(line, cx, lineY);
+  });
+
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
 }

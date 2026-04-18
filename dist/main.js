@@ -1103,15 +1103,34 @@
       text: "#aad4ff"
     }
   };
+  function wrapText(ctx2, message, maxWidth) {
+    const words = message.split(/\s+/);
+    const lines = [];
+    let line = "";
+    for (const word of words) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (ctx2.measureText(candidate).width <= maxWidth) {
+        line = candidate;
+      } else {
+        if (line) lines.push(line);
+        line = word;
+      }
+    }
+    if (line) lines.push(line);
+    return lines.length > 0 ? lines : [message];
+  }
   function renderToast(ctx2, message, cx, cy, maxWidth, fontScale, variant = "error") {
     const style = TOAST_STYLES[variant];
     const fontSize = Math.max(12, 14 * fontScale);
     ctx2.font = `bold ${fontSize}px sans-serif`;
-    const textW = ctx2.measureText(message).width;
     const padH = 14;
     const padV = 7;
-    const boxW = Math.min(textW + padH * 2, maxWidth);
-    const boxH = fontSize + padV * 2;
+    const lineH = fontSize + 4;
+    const innerW = Math.max(maxWidth - padH * 2, 40);
+    const lines = wrapText(ctx2, message, innerW);
+    const maxLineW = Math.max(...lines.map((l) => ctx2.measureText(l).width));
+    const boxW = Math.min(maxLineW + padH * 2, maxWidth);
+    const boxH = lines.length * lineH + padV * 2;
     const x = cx - boxW / 2;
     const y = cy - boxH / 2;
     ctx2.fillStyle = "rgba(0,0,0,0.4)";
@@ -1127,15 +1146,13 @@
     ctx2.fillStyle = style.highlight;
     drawRoundRect(ctx2, x + 1, y + 1, boxW - 2, boxH / 2, 7);
     ctx2.fill();
-    ctx2.save();
-    ctx2.beginPath();
-    ctx2.rect(x + 4, y, boxW - 8, boxH);
-    ctx2.clip();
     ctx2.fillStyle = style.text;
     ctx2.textAlign = "center";
     ctx2.textBaseline = "middle";
-    ctx2.fillText(message, cx, cy);
-    ctx2.restore();
+    lines.forEach((line, i) => {
+      const lineY = y + padV + lineH * i + lineH / 2;
+      ctx2.fillText(line, cx, lineY);
+    });
     ctx2.textBaseline = "alphabetic";
     ctx2.textAlign = "left";
   }
@@ -2299,11 +2316,21 @@
         this.drawDie(x, diceY, diceSize, val, isWhite, used);
       });
       if (state.dice.values[0] === state.dice.values[1]) {
-        const fontSize = Math.max(9, 11 * l.fontScale);
-        ctx2.font = `${fontSize}px sans-serif`;
+        const fontSize = Math.max(10, 12 * l.fontScale);
+        const label = `\xD7${state.dice.remaining.length}`;
+        ctx2.font = `bold ${fontSize}px sans-serif`;
+        const textW = ctx2.measureText(label).width;
+        const padX = 5, padY = 3;
+        const badgeW = textW + padX * 2;
+        const badgeH = fontSize + padY * 2;
+        const badgeX = diceX - badgeW - 8;
+        const badgeY = diceY + diceSize / 2 - badgeH / 2;
+        ctx2.fillStyle = "rgba(0,0,0,0.55)";
+        roundRect(ctx2, badgeX, badgeY, badgeW, badgeH, 4);
+        ctx2.fill();
         ctx2.fillStyle = COLORS.textLight;
-        ctx2.textAlign = "left";
-        ctx2.fillText(`\xD7${state.dice.remaining.length}`, diceX, diceY + diceSize + 16);
+        ctx2.textAlign = "center";
+        ctx2.fillText(label, badgeX + badgeW / 2, badgeY + padY + fontSize * 0.85);
       }
     }
     /**
