@@ -3,8 +3,8 @@
 
 import { SaveData, SerializedGameState, Player, GamePhase } from '../game/Types.js';
 
-export const SCHEMA_VERSION = 1;
-export const APP_VERSION = '1.0.0';
+export const SCHEMA_VERSION = 2;
+export const APP_VERSION = '1.1.0';
 
 // Validation result
 export interface ValidationResult {
@@ -27,10 +27,10 @@ export function validateSaveData(data: unknown): ValidationResult {
 
   const d = data as Record<string, unknown>;
 
-  // Schema version check
+  // Schema version check — v1 saves are migrated on load, not rejected
   if (typeof d.schemaVersion !== 'number') {
     err(errors, 'Missing or invalid schemaVersion');
-  } else if (d.schemaVersion !== SCHEMA_VERSION) {
+  } else if (d.schemaVersion !== SCHEMA_VERSION && d.schemaVersion !== 1) {
     err(errors, `Schema version mismatch: expected ${SCHEMA_VERSION}, got ${d.schemaVersion}`);
   }
 
@@ -118,7 +118,8 @@ function validateGameState(gs: Record<string, unknown>, errors: string[]): void 
 
   // Phase
   const validPhases: GamePhase[] = [
-    'rollingForFirst', 'waitingForRoll', 'playerActing', 'aiThinking', 'gameOver',
+    'rollingForFirst', 'waitingForRoll', 'playerActing', 'aiThinking',
+    'playerDecidingDouble', 'gameOver',
   ];
   if (!validPhases.includes(gs.phase as GamePhase)) {
     err(errors, `phase invalid: ${gs.phase}`);

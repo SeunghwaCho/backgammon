@@ -1,4 +1,6 @@
-import { GameState, Point, Player } from './Types.js';
+import { GameState, Point, Player, DoublingCube, MatchState } from './Types.js';
+
+export const DEFAULT_MATCH_LENGTH = 5;
 
 // Standard backgammon initial position
 // WHITE pieces at: 24(2), 13(5), 8(3), 6(5)
@@ -33,7 +35,23 @@ export function createInitialBoard(): Point[] {
   return board;
 }
 
-export function createInitialGameState(): GameState {
+export function createInitialCube(): DoublingCube {
+  return { value: 1, owner: null };
+}
+
+export function createInitialMatch(targetScore = DEFAULT_MATCH_LENGTH): MatchState {
+  return {
+    targetScore,
+    whiteScore: 0,
+    blackScore: 0,
+    isCrawford: false,
+    postCrawford: false,
+    matchOver: false,
+    matchWinner: null,
+  };
+}
+
+export function createInitialGameState(match?: MatchState): GameState {
   return {
     board: createInitialBoard(),
     whiteBorneOff: 0,
@@ -45,9 +63,12 @@ export function createInitialGameState(): GameState {
     validMoves: [],
     legalSequences: [],
     winner: null,
+    winType: null,
     lastSaveTime: null,
     errorMessage: null,
     initialRoll: null,
+    cube: createInitialCube(),
+    match: match ?? createInitialMatch(),
   };
 }
 
@@ -69,9 +90,12 @@ export function cloneGameState(state: GameState): GameState {
     validMoves: state.validMoves.map(m => ({ ...m })),
     legalSequences: state.legalSequences.map(seq => seq.map(m => ({ ...m }))),
     winner: state.winner,
+    winType: state.winType,
     lastSaveTime: state.lastSaveTime,
     errorMessage: state.errorMessage,
     initialRoll: state.initialRoll ? { ...state.initialRoll } : null,
+    cube: { ...state.cube },
+    match: { ...state.match },
   };
 }
 

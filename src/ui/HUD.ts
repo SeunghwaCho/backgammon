@@ -387,6 +387,25 @@ export function renderConfirmDialog(
   return { yesBtn, noBtn };
 }
 
+// Render accept/decline overlay when AI has offered a double
+export function renderDoubleOfferPrompt(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  canvasH: number,
+  fontScale: number,
+  newCubeValue: number,
+): ConfirmButtons {
+  const loc = t();
+  const msg = loc.aiOffersDouble.replace('{v}', String(newCubeValue));
+  return renderConfirmDialog(
+    ctx, canvasW, canvasH, fontScale,
+    msg, '',
+    { type: 'acceptDouble' }, { type: 'declineDouble' },
+    loc.acceptDouble, loc.declineDouble,
+    '#ffe066'
+  );
+}
+
 export function renderNewGameConfirm(
   ctx: CanvasRenderingContext2D,
   canvasW: number,

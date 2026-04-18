@@ -4,6 +4,7 @@ import { GameState, Move } from '../game/Types.js';
 import { CanvasRenderer } from '../render/CanvasRenderer.js';
 import { barIndex } from '../game/GameState.js';
 import { getSelectablePoints, getMovesFromPoint } from '../game/MoveGenerator.js';
+import { canOfferDouble } from '../game/Reducer.js';
 import { t } from '../i18n/Locale.js';
 import { audioSystem } from '../utils/AudioSystem.js';
 
@@ -19,7 +20,11 @@ export type InputAction =
   | { type: 'cancelClearSave' }   // user pressed No
   | { type: 'continueGame' }
   | { type: 'toggleLang' }
-  | { type: 'toggleSound' };
+  | { type: 'toggleSound' }
+  | { type: 'offerDouble' }       // player offers to double
+  | { type: 'acceptDouble' }      // player accepts AI's double
+  | { type: 'declineDouble' }     // player declines AI's double
+  | { type: 'nextGame' };         // start next game in match
 
 export interface ButtonArea {
   x: number;
@@ -38,6 +43,7 @@ export class InputController {
   private renderer: CanvasRenderer;
   private onAction: (action: InputAction) => void;
   private buttons: ButtonArea[] = [];
+  private currentState: GameState | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -50,6 +56,11 @@ export class InputController {
 
     this.setupEventListeners();
     this.setupButtons();
+  }
+
+  /** Called before each render so click handlers can check button visibility. */
+  setState(state: GameState): void {
+    this.currentState = state;
   }
 
   private setupEventListeners(): void {
@@ -107,12 +118,40 @@ export class InputController {
       visible: (s) => (s.phase === 'waitingForRoll' && s.currentPlayer === 'white') || s.phase === 'rollingForFirst',
     };
 
+    const doubleBtnW = Math.min(80, canvasW * 0.12);
+    const doubleBtnH = Math.min(52, layout.boardH * 0.17);
+    const doubleBtn: ButtonArea = {
+      x: rollBtnCX - rollBtnW / 2 - doubleBtnW - 8,
+      y: rollBtnCY - doubleBtnH / 2,
+      w: doubleBtnW,
+      h: doubleBtnH,
+      action: { type: 'offerDouble' },
+      label: loc.btnDoubleText,
+      emoji: loc.btnDoubleEmoji,
+      text: loc.btnDoubleText,
+      visible: (s) => canOfferDouble(s) && s.currentPlayer === 'white',
+    };
+
+    const nextGameBtnW = Math.min(160, canvasW * 0.22);
+    const nextGameBtnH = Math.min(52, layout.boardH * 0.17);
+    const nextGameBtn: ButtonArea = {
+      x: layout.boardX + layout.boardW / 2 - nextGameBtnW / 2,
+      y: layout.boardY + layout.boardH / 2 + 30,
+      w: nextGameBtnW,
+      h: nextGameBtnH,
+      action: { type: 'nextGame' },
+      label: loc.nextGameBtn,
+      emoji: '▶',
+      text: loc.nextGameBtn,
+      visible: (s) => s.phase === 'gameOver' && !s.match.matchOver,
+    };
+
     if (layout.isPortrait) {
       // Portrait: 4 equal buttons across full width (roll moved to board center)
       const totalMargin = margin * 5;
       const btnW = Math.floor((canvasW - totalMargin) / 4);
       this.buttons = [
-        rollBtn,
+        rollBtn, doubleBtn, nextGameBtn,
         {
           x: margin,
           y: btnY,
@@ -122,7 +161,7 @@ export class InputController {
           label: loc.btnNewGame,
           emoji: loc.btnNewGameEmoji,
           text: loc.btnNewGameText,
-          visible: (_) => true,
+          visible: (_: GameState) => true,
         },
         {
           x: margin * 2 + btnW,
@@ -133,7 +172,7 @@ export class InputController {
           label: loc.btnClearSave,
           emoji: loc.btnClearSaveEmoji,
           text: loc.btnClearSaveText,
-          visible: (_) => true,
+          visible: (_: GameState) => true,
         },
         {
           x: margin * 3 + btnW * 2,
@@ -144,7 +183,7 @@ export class InputController {
           label: soundEmoji,
           emoji: soundEmoji,
           text: soundText,
-          visible: (_) => true,
+          visible: (_: GameState) => true,
         },
         {
           x: margin * 4 + btnW * 3,
@@ -155,7 +194,7 @@ export class InputController {
           label: loc.btnLang,
           emoji: loc.btnLangEmoji,
           text: loc.btnLangText,
-          visible: (_) => true,
+          visible: (_: GameState) => true,
         },
       ];
     } else {
@@ -164,7 +203,7 @@ export class InputController {
       const smallW = Math.min(72, canvasW * 0.1);
       const rightEdge = canvasW - margin;
       this.buttons = [
-        rollBtn,
+        rollBtn, doubleBtn, nextGameBtn,
         {
           x: rightEdge - btnW * 2 - smallW * 2 - margin * 3,
           y: btnY,
@@ -174,7 +213,7 @@ export class InputController {
           label: loc.btnNewGame,
           emoji: loc.btnNewGameEmoji,
           text: loc.btnNewGameText,
-          visible: (_) => true,
+          visible: (_: GameState) => true,
         },
         {
           x: rightEdge - btnW - smallW * 2 - margin * 2,
@@ -185,7 +224,7 @@ export class InputController {
           label: loc.btnClearSave,
           emoji: loc.btnClearSaveEmoji,
           text: loc.btnClearSaveText,
-          visible: (_) => true,
+          visible: (_: GameState) => true,
         },
         {
           x: rightEdge - smallW * 2 - margin,
@@ -196,7 +235,7 @@ export class InputController {
           label: soundEmoji,
           emoji: soundEmoji,
           text: soundText,
-          visible: (_) => true,
+          visible: (_: GameState) => true,
         },
         {
           x: rightEdge - smallW,
@@ -207,7 +246,7 @@ export class InputController {
           label: loc.btnLang,
           emoji: loc.btnLangEmoji,
           text: loc.btnLangText,
-          visible: (_) => true,
+          visible: (_: GameState) => true,
         },
       ];
     }
@@ -245,9 +284,11 @@ export class InputController {
   }
 
   private handleClick(x: number, y: number): void {
-    // Check button clicks first
+    // Check button clicks first; only fire if currently visible
     for (const btn of this.buttons) {
       if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+        if (this.currentState && !btn.visible(this.currentState)) continue;
+        audioSystem.playButtonClick();
         this.onAction(btn.action);
         return;
       }

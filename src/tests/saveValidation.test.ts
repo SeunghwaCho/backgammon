@@ -17,6 +17,13 @@ function validSaveData(): SaveData {
       dice: null,
       phase: 'waitingForRoll',
       winner: null,
+      winType: null,
+      cube: { value: 1, owner: null },
+      match: {
+        targetScore: 5, whiteScore: 0, blackScore: 0,
+        isCrawford: false, postCrawford: false,
+        matchOver: false, matchWinner: null,
+      },
     },
   };
 }

@@ -70,6 +70,27 @@ export interface LocaleStrings {
   btnSoundOnText: string;   // label when sound is ON  (click to mute)
   btnSoundOffText: string;  // label when sound is OFF (click to unmute)
 
+  // Doubling cube
+  btnDoubleEmoji: string;
+  btnDoubleText: string;
+  aiOffersDouble: string;
+  acceptDouble: string;
+  declineDouble: string;
+  youDoubled: string;
+  aiAcceptedDouble: string;
+  cubeLabel: string;
+
+  // Match score
+  matchScore: string;
+  matchOf: string;
+  matchWon: string;
+  gammonWin: string;
+  backgammonWin: string;
+  nextGameBtn: string;
+
+  // Pip count
+  pipLabel: string;
+
   // Error / info messages
   errCannotMove: string;
   errInvalidMove: string;
@@ -134,6 +155,24 @@ const KO: LocaleStrings = {
   rollForFirstWhiteFirst: '🎉 흰색 선공!',
   rollForFirstBlackFirst: '🎉 검정 선공!',
 
+  btnDoubleEmoji: '✖️',
+  btnDoubleText: '더블',
+  aiOffersDouble: 'AI가 더블을 제안합니다! (현재 ×{v})',
+  acceptDouble: '✅ 수락',
+  declineDouble: '❌ 거부',
+  youDoubled: '더블! AI가 수락했습니다 (×{v})',
+  aiAcceptedDouble: 'AI가 더블을 수락했습니다',
+  cubeLabel: '큐브',
+
+  matchScore: '매치',
+  matchOf: '/{t}',
+  matchWon: '🏆 매치 승리!',
+  gammonWin: '🎯 Gammon! ({v}점)',
+  backgammonWin: '🎯 Backgammon! ({v}점)',
+  nextGameBtn: '다음 게임 ▶',
+
+  pipLabel: 'pip',
+
   errCannotMove: '그 곳으로 이동할 수 없습니다.',
   errInvalidMove: '잘못된 이동입니다.',
   msgSaveCleared: '저장 데이터가 삭제되었습니다.',
@@ -196,6 +235,24 @@ const EN: LocaleStrings = {
   rollForFirstTie: 'Tie! Roll again 🎲',
   rollForFirstWhiteFirst: '🎉 White goes first!',
   rollForFirstBlackFirst: '🎉 Black goes first!',
+
+  btnDoubleEmoji: '✖️',
+  btnDoubleText: 'Double',
+  aiOffersDouble: 'AI offers Double! (now ×{v})',
+  acceptDouble: '✅ Accept',
+  declineDouble: '❌ Decline',
+  youDoubled: 'Doubled! AI accepted (×{v})',
+  aiAcceptedDouble: 'AI accepted the double',
+  cubeLabel: 'Cube',
+
+  matchScore: 'Match',
+  matchOf: '/{t}',
+  matchWon: '🏆 Match Won!',
+  gammonWin: '🎯 Gammon! ({v} pts)',
+  backgammonWin: '🎯 Backgammon! ({v} pts)',
+  nextGameBtn: 'Next Game ▶',
+
+  pipLabel: 'pip',
 
   errCannotMove: 'Cannot move there.',
   errInvalidMove: 'Invalid move.',

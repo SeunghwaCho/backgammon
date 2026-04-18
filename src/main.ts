@@ -10,12 +10,17 @@ import {
   applyPlayerMove,
   applyMoveInternal,
   startNewGame,
+  startNextGame,
   restoreFromSave,
+  offerDouble,
+  acceptDouble,
+  declineDouble,
+  canOfferDouble,
 } from './game/Reducer.js';
 import { chooseBestSequence } from './ai/BackgammonAI.js';
 import { CanvasRenderer, ANIM_DICE_MS } from './render/CanvasRenderer.js';
 import { InputController, InputAction, ButtonArea } from './input/InputController.js';
-import { renderButtons, renderRestorePrompt, renderNewGameConfirm, renderClearSaveConfirm, ConfirmButtons } from './ui/HUD.js';
+import { renderButtons, renderRestorePrompt, renderNewGameConfirm, renderClearSaveConfirm, renderDoubleOfferPrompt, ConfirmButtons } from './ui/HUD.js';
 import { saveGame, loadGame, deleteSave } from './persistence/IndexedDbStore.js';
 import {
   validateSaveData,
@@ -23,6 +28,7 @@ import {
   APP_VERSION,
 } from './persistence/SaveValidation.js';
 import { rollTwoDice } from './utils/random.js';
+import { getPipCount } from './game/Rules.js';
 import { toggleLang, onLangChange, t } from './i18n/Locale.js';
 import { ANIM_MOVE_MS } from './render/AnimationSystem.js';
 import { audioSystem } from './utils/AudioSystem.js';
@@ -51,6 +57,9 @@ let confirmButtons: ConfirmButtons | null = null;
 // same mousedown/touchstart event; without this guard the dialog opens and
 // immediately closes because the interceptor sees "tap outside".
 let suppressConfirmHandling = false;
+
+// Double offer overlay (AI offered to double, waiting for player response)
+let showingDoubleOffer = false;
 
 // Error display timeout
 let errorClearTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -201,6 +210,29 @@ function handleAction(action: InputAction): void {
     return;
   }
 
+  // ── Double offer overlay ──────────────────────────────────────────────────
+  if (showingDoubleOffer || gameState.phase === 'playerDecidingDouble') {
+    if (action.type === 'acceptDouble') {
+      showingDoubleOffer = false;
+      confirmButtons = null;
+      gameState = acceptDouble(gameState);
+      audioSystem.playDouble();
+      autoSave();
+      render();
+      scheduleAITurn();
+      return;
+    } else if (action.type === 'declineDouble') {
+      showingDoubleOffer = false;
+      confirmButtons = null;
+      gameState = declineDouble(gameState);
+      audioSystem.playDecline();
+      autoSave();
+      render();
+      return;
+    }
+    return; // block all other actions during double offer
+  }
+
   // ── Startup restore prompt ─────────────────────────────────────────────────
   if (startupPhase === 'promptRestore') {
     if (action.type === 'continueGame') {
@@ -268,6 +300,14 @@ function handleAction(action: InputAction): void {
         canvas.clientHeight
       );
       render();
+      break;
+
+    case 'offerDouble':
+      handleOfferDouble();
+      break;
+
+    case 'nextGame':
+      handleNextGame();
       break;
   }
 }
@@ -429,10 +469,30 @@ function handleMakeMove(move: Move): void {
   ) {
     scheduleAITurn();
   } else if (gameState.phase === 'gameOver') {
-    audioSystem.playWin();
+    playGameOverSound(gameState);
     autoSave();
     render();
   }
+}
+
+function handleOfferDouble(): void {
+  if (!canOfferDouble(gameState)) return;
+  gameState = offerDouble(gameState);
+  audioSystem.playDouble();
+  autoSave();
+  render();
+  const loc = t();
+  setError(loc.youDoubled.replace('{v}', String(gameState.cube.value)));
+}
+
+function handleNextGame(): void {
+  if (gameState.phase !== 'gameOver') return;
+  if (gameState.match.matchOver) return;
+  if (aiInProgress) { aiInProgress = false; }
+  gameState = startNextGame(gameState);
+  autoSave();
+  render();
+  // No AI scheduling here — first player is determined by initial roll
 }
 
 function handleNewGame(): void {
@@ -456,6 +516,40 @@ async function handleClearSave(): Promise<void> {
   render();
 }
 
+// ─── Sound Helpers ────────────────────────────────────────────────────────────
+
+// Play the appropriate game-over sound based on outcome
+function playGameOverSound(state: GameState, perspective: 'player' | 'ai' = 'player'): void {
+  const isPlayerWin = state.winner === 'white';
+  if (isPlayerWin) {
+    if (state.match.matchOver) {
+      audioSystem.playMatchWin();
+    } else if (state.winType === 'gammon' || state.winType === 'backgammon') {
+      audioSystem.playGammonWin();
+    } else {
+      audioSystem.playWin();
+    }
+  } else {
+    audioSystem.playLose();
+  }
+}
+
+// ─── AI Double Decision ───────────────────────────────────────────────────────
+
+function aiShouldDouble(state: GameState): boolean {
+  if (!canOfferDouble(state)) return false;
+  if (state.currentPlayer !== 'black') return false;
+
+  const bPip = getPipCount(state.board, 'black', state.blackBorneOff);
+  const wPip = getPipCount(state.board, 'white', state.whiteBorneOff);
+
+  // AI doubles when it has a clear pip advantage (>25% better) and is not near game start
+  const totalMoved = state.blackBorneOff + state.whiteBorneOff;
+  if (totalMoved < 2) return false; // too early to double
+  if (bPip === 0) return false;     // almost done, no need to double
+  return wPip > bPip * 1.25;
+}
+
 // ─── AI Turn ──────────────────────────────────────────────────────────────────
 
 function scheduleAITurn(): void {
@@ -473,6 +567,19 @@ async function runAITurn(): Promise<void> {
   if (gameState.phase === 'gameOver') {
     aiInProgress = false;
     return;
+  }
+
+  // Check if AI should offer a double before rolling
+  if (gameState.phase === 'waitingForRoll') {
+    if (aiShouldDouble(gameState)) {
+      gameState = offerDouble(gameState);
+      audioSystem.playDouble();
+      autoSave();
+      showingDoubleOffer = true;
+      render(); // show the double offer overlay
+      aiInProgress = false; // pause AI until player responds
+      return;
+    }
   }
 
   // Roll dice for AI
@@ -535,7 +642,7 @@ async function runAITurn(): Promise<void> {
     startAnimLoop();
 
     if (gameState.phase === 'gameOver') {
-      audioSystem.playLose();
+      playGameOverSound(gameState, 'ai');
       aiInProgress = false;
       return;
     }
@@ -571,6 +678,9 @@ async function autoSave(): Promise<void> {
           : null,
         phase: gameState.phase,
         winner: gameState.winner,
+        winType: gameState.winType,
+        cube: { ...gameState.cube },
+        match: { ...gameState.match },
       },
     };
     await saveGame(saveData);
@@ -611,9 +721,16 @@ function loadSavedGame(): void {
       validMoves: [],
       legalSequences: [],
       winner: gs.winner,
+      winType: gs.winType ?? null,
       lastSaveTime: savedData.timestamp,
       errorMessage: null,
       initialRoll: null,
+      cube: gs.cube ? { ...gs.cube } : { value: 1, owner: null },
+      match: gs.match ? { ...gs.match } : {
+        targetScore: 5, whiteScore: 0, blackScore: 0,
+        isCrawford: false, postCrawford: false,
+        matchOver: false, matchWinner: null,
+      },
     };
 
     // Restore using reducer (re-generates legal sequences)
@@ -663,6 +780,9 @@ function render(): void {
       renderer.renderValidTargets(gameState);
     }
 
+    // Sync state to input controller so click handlers check correct visibility
+    inputController.setState(gameState);
+
     // Render HUD buttons
     const layout = renderer.getLayout();
     if (layout) {
@@ -677,6 +797,8 @@ function render(): void {
       confirmButtons = renderNewGameConfirm(ctx, w, h, fs);
     } else if (confirmingClearSave) {
       confirmButtons = renderClearSaveConfirm(ctx, w, h, fs);
+    } else if (showingDoubleOffer || gameState.phase === 'playerDecidingDouble') {
+      confirmButtons = renderDoubleOfferPrompt(ctx, w, h, fs, gameState.cube.value * 2);
     } else {
       confirmButtons = null;
     }

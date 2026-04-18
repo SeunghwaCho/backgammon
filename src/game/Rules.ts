@@ -1,4 +1,4 @@
-import { Player, Point, GameState, Move } from './Types.js';
+import { Player, Point, GameState, Move, WinType } from './Types.js';
 import { barIndex, cloneBoard } from './GameState.js';
 
 // White's home board: points 1-6
@@ -196,6 +196,36 @@ export function getPlayerPoints(board: Point[], player: Player): number[] {
     }
   }
   return points;
+}
+
+// Determine win type: single, gammon, or backgammon
+// Gammon: loser has not borne off any checkers
+// Backgammon: gammon + loser has pieces on bar or in winner's home board
+export function getWinType(state: GameState, winner: Player): WinType {
+  const loser: Player = winner === 'white' ? 'black' : 'white';
+  const loserBorneOff = loser === 'white' ? state.whiteBorneOff : state.blackBorneOff;
+
+  if (loserBorneOff > 0) return 'single';
+
+  // Gammon or backgammon: loser has 0 borne off
+  // Check for backgammon: loser has pieces on bar or in winner's home board
+  const loserBarIdx = loser === 'white' ? 0 : 25;
+  const loserBarPt = state.board[loserBarIdx];
+  if (loserBarPt.owner === loser && loserBarPt.count > 0) return 'backgammon';
+
+  const [winnerHomeMin, winnerHomeMax] = getHomeBoardRange(winner);
+  for (let i = winnerHomeMin; i <= winnerHomeMax; i++) {
+    if (state.board[i].owner === loser && state.board[i].count > 0) return 'backgammon';
+  }
+
+  return 'gammon';
+}
+
+// Point value for a win type (multiplier applied to cube value)
+export function winTypeMultiplier(wt: WinType): number {
+  if (wt === 'gammon') return 2;
+  if (wt === 'backgammon') return 3;
+  return 1;
 }
 
 // Calculate pip count for a player (used for AI evaluation)

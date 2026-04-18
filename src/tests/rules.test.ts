@@ -9,6 +9,9 @@ import {
   isBlot,
   getHomeBoardRange,
   getPipCount,
+  checkWinner,
+  getWinType,
+  winTypeMultiplier,
 } from '../game/Rules.js';
 import type { Point } from '../game/Types.js';
 
@@ -436,5 +439,129 @@ describe('getPipCount', () => {
     const board = emptyBoard();
     placeCheckers(board, 5, 'white', 2);
     assert.equal(getPipCount(board, 'white', 0), getPipCount(board, 'white', 5));
+  });
+});
+
+// ─── checkWinner ─────────────────────────────────────────────────────────────
+
+describe('checkWinner', () => {
+  test('returns null when nobody has borne off 15', () => {
+    const state = createInitialGameState();
+    assert.equal(checkWinner(state), null);
+  });
+
+  test('returns white when white has borne off 15', () => {
+    const state = createInitialGameState();
+    state.whiteBorneOff = 15;
+    assert.equal(checkWinner(state), 'white');
+  });
+
+  test('returns black when black has borne off 15', () => {
+    const state = createInitialGameState();
+    state.blackBorneOff = 15;
+    assert.equal(checkWinner(state), 'black');
+  });
+
+  test('returns null when both are at 14', () => {
+    const state = createInitialGameState();
+    state.whiteBorneOff = 14;
+    state.blackBorneOff = 14;
+    assert.equal(checkWinner(state), null);
+  });
+});
+
+// ─── getWinType ───────────────────────────────────────────────────────────────
+
+describe('getWinType', () => {
+  /** Build a minimal game state to test win type classification. */
+  function winState(opts: {
+    loserBorneOff?: number;
+    loserOnBar?: boolean;
+    loserInWinnerHome?: boolean;
+    winner?: 'white' | 'black';
+  } = {}): ReturnType<typeof createInitialGameState> {
+    const winner = opts.winner ?? 'white';
+    const loser: 'white' | 'black' = winner === 'white' ? 'black' : 'white';
+    const state = createInitialGameState();
+    state.board = emptyBoard();
+
+    if (loser === 'black') {
+      state.blackBorneOff = opts.loserBorneOff ?? 0;
+      if (opts.loserOnBar) {
+        state.board[25] = { owner: 'black', count: 1 };
+      }
+      if (opts.loserInWinnerHome) {
+        // winner = white, home = 1-6
+        state.board[3] = { owner: 'black', count: 1 };
+      }
+      // Remaining black checkers in neutral zone
+      const placed = (opts.loserOnBar ? 1 : 0) + (opts.loserInWinnerHome ? 1 : 0);
+      const neutral = 15 - (opts.loserBorneOff ?? 0) - placed;
+      if (neutral > 0) state.board[15] = { owner: 'black', count: neutral };
+    } else {
+      state.whiteBorneOff = opts.loserBorneOff ?? 0;
+      if (opts.loserOnBar) {
+        state.board[0] = { owner: 'white', count: 1 };
+      }
+      if (opts.loserInWinnerHome) {
+        // winner = black, home = 19-24
+        state.board[21] = { owner: 'white', count: 1 };
+      }
+      const placed = (opts.loserOnBar ? 1 : 0) + (opts.loserInWinnerHome ? 1 : 0);
+      const neutral = 15 - (opts.loserBorneOff ?? 0) - placed;
+      if (neutral > 0) state.board[10] = { owner: 'white', count: neutral };
+    }
+    return state;
+  }
+
+  test('single: loser has borne off at least one checker', () => {
+    const state = winState({ loserBorneOff: 3 });
+    assert.equal(getWinType(state, 'white'), 'single');
+  });
+
+  test('gammon: loser has 0 borne off, not on bar, not in winner home', () => {
+    const state = winState({ loserBorneOff: 0 });
+    assert.equal(getWinType(state, 'white'), 'gammon');
+  });
+
+  test('backgammon: loser has checker on black bar (white wins)', () => {
+    const state = winState({ loserBorneOff: 0, loserOnBar: true });
+    assert.equal(getWinType(state, 'white'), 'backgammon');
+  });
+
+  test('backgammon: loser has checker in winner home board (white wins)', () => {
+    const state = winState({ loserBorneOff: 0, loserInWinnerHome: true });
+    assert.equal(getWinType(state, 'white'), 'backgammon');
+  });
+
+  test('gammon when black wins and white has 0 borne off, not in black home', () => {
+    const state = winState({ winner: 'black', loserBorneOff: 0 });
+    assert.equal(getWinType(state, 'black'), 'gammon');
+  });
+
+  test('backgammon when black wins and white is on bar', () => {
+    const state = winState({ winner: 'black', loserBorneOff: 0, loserOnBar: true });
+    assert.equal(getWinType(state, 'black'), 'backgammon');
+  });
+
+  test('backgammon when black wins and white is in black home (19-24)', () => {
+    const state = winState({ winner: 'black', loserBorneOff: 0, loserInWinnerHome: true });
+    assert.equal(getWinType(state, 'black'), 'backgammon');
+  });
+});
+
+// ─── winTypeMultiplier ────────────────────────────────────────────────────────
+
+describe('winTypeMultiplier', () => {
+  test('single = 1', () => {
+    assert.equal(winTypeMultiplier('single'), 1);
+  });
+
+  test('gammon = 2', () => {
+    assert.equal(winTypeMultiplier('gammon'), 2);
+  });
+
+  test('backgammon = 3', () => {
+    assert.equal(winTypeMultiplier('backgammon'), 3);
   });
 });
