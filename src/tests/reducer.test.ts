@@ -108,6 +108,44 @@ describe('rollDice - no legal moves', () => {
     assert.equal(result.currentPlayer, 'black');
     assert.equal(result.phase, 'waitingForRoll');
   });
+
+  test('dice are null after turn passes (no legal moves)', () => {
+    // Dice must be cleared so the renderer never shows stale dice values
+    const s = waitingState('white');
+    s.board = emptyBoard();
+    s.board[0]  = { owner: 'white', count: 1 };
+    s.board[22] = { owner: 'black', count: 2 };
+    s.board[20] = { owner: 'black', count: 2 };
+
+    const result = rollDice(s, 3, 5);
+    assert.equal(result.dice, null);
+  });
+
+  test('passes turn when black checker on bar cannot enter', () => {
+    // Black on bar; dice [2,4] → entry at pts 2 and 4; block both
+    const s = waitingState('black');
+    s.board = emptyBoard();
+    s.board[25] = { owner: 'black', count: 1 };  // black on bar
+    s.board[2]  = { owner: 'white', count: 2 };  // blocks die 2
+    s.board[4]  = { owner: 'white', count: 2 };  // blocks die 4
+
+    const result = rollDice(s, 2, 4);
+    assert.equal(result.currentPlayer, 'white');
+    assert.equal(result.phase, 'waitingForRoll');
+    assert.equal(result.dice, null);
+  });
+
+  test('doubles: dice null after turn passes with no legal moves', () => {
+    const s = waitingState('white');
+    s.board = emptyBoard();
+    s.board[0]  = { owner: 'white', count: 1 };
+    // Block entry point 22 (die=3 from bar → 25-3=22)
+    s.board[22] = { owner: 'black', count: 2 };
+
+    const result = rollDice(s, 3, 3);
+    assert.equal(result.currentPlayer, 'black');
+    assert.equal(result.dice, null);
+  });
 });
 
 // ─── selectPoint ────────────────────────────────────────────────────────────
@@ -283,6 +321,74 @@ describe('applyMoveInternal - end of turn', () => {
     const result = applyMoveInternal(s, mv(10, 8, 2));
     assert.equal(result.currentPlayer, 'black');
     assert.equal(result.phase, 'waitingForRoll');
+  });
+
+  test('dice become null when all dice consumed', () => {
+    // Renderer reads state.dice to decide whether to draw dice;
+    // null here means the animation-end frame must not try to show dice.
+    const s = waitingState();
+    s.board = emptyBoard();
+    s.board[10] = { owner: 'white', count: 1 };
+    s.dice = { values: [2, 4], remaining: [2] };
+    s.phase = 'playerActing';
+    s.legalSequences = [[mv(10, 8, 2)]];
+    const result = applyMoveInternal(s, mv(10, 8, 2));
+    assert.equal(result.dice, null);
+  });
+
+  test('dice become null when remaining moves are blocked', () => {
+    // If remaining dice cannot be used, turn ends and dice clear.
+    const s = waitingState();
+    s.board = emptyBoard();
+    s.board[10] = { owner: 'white', count: 1 };
+    s.board[5]  = { owner: 'black', count: 2 }; // blocks remaining die
+    s.dice = { values: [5, 3], remaining: [5] };
+    s.phase = 'playerActing';
+    // Only the die-3 move is legal; after using it only die-5 remains but is blocked
+    s.legalSequences = [[mv(10, 7, 3)]];
+    const result = applyMoveInternal(s, mv(10, 7, 3));
+    assert.equal(result.dice, null);
+    assert.equal(result.currentPlayer, 'black');
+  });
+});
+
+describe('applyMoveInternal - doubles dice tracking', () => {
+  function doublesState(): GameState {
+    const s = waitingState();
+    s.board = emptyBoard();
+    s.board[10] = { owner: 'white', count: 4 };
+    s.dice = { values: [3, 3], remaining: [3, 3, 3, 3] };
+    s.phase = 'playerActing';
+    s.legalSequences = [
+      [mv(10, 7, 3), mv(10, 7, 3), mv(10, 7, 3), mv(10, 7, 3)],
+    ];
+    return s;
+  }
+
+  test('doubles: remaining decrements from 4 after first sub-move', () => {
+    const result = applyMoveInternal(doublesState(), mv(10, 7, 3));
+    assert.equal(result.dice!.remaining.length, 3);
+  });
+
+  test('doubles: remaining decrements to 2 after second sub-move', () => {
+    let s = applyMoveInternal(doublesState(), mv(10, 7, 3));
+    s = applyMoveInternal(s, mv(10, 7, 3));
+    assert.equal(s.dice!.remaining.length, 2);
+  });
+
+  test('doubles: dice null after all 4 sub-moves consumed', () => {
+    let s = doublesState();
+    for (let i = 0; i < 4; i++) {
+      s = applyMoveInternal(s, mv(10, 7, 3));
+    }
+    assert.equal(s.dice, null);
+  });
+
+  test('doubles: dice.values preserves original [d,d] throughout', () => {
+    let s = applyMoveInternal(doublesState(), mv(10, 7, 3));
+    assert.deepEqual(s.dice!.values, [3, 3]);
+    s = applyMoveInternal(s, mv(10, 7, 3));
+    assert.deepEqual(s.dice!.values, [3, 3]);
   });
 });
 

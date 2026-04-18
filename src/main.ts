@@ -900,6 +900,11 @@ function startAnimLoop(): void {
       rafId = requestAnimationFrame(loop);
     } else {
       rafId = null;
+      // One final render so static dice appear after animation clears.
+      // Without this, the frame where renderDiceAnim clears the overlay can
+      // overlap with the frame where drawDice suppressed static dice, leaving
+      // the dice invisible until the next user interaction.
+      render();
     }
   }
   rafId = requestAnimationFrame(loop);
