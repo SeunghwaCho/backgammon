@@ -1,0 +1,100 @@
+@startuml classes
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam ClassBorderColor #888888
+skinparam ClassBackgroundColor #FFFFFF
+skinparam ClassHeaderBackgroundColor #E3F2FD
+skinparam ArrowColor #555555
+skinparam PackageBorderColor #BBBBBB
+
+title Backgammon — Core Type Diagram
+
+package "game/Types.ts" {
+  class GameState {
+    +board: Point[26]
+    +whiteBorneOff: number
+    +blackBorneOff: number
+    +currentPlayer: Player
+    +dice: DiceState
+    +phase: GamePhase
+    +selectedPoint: number | null
+    +validMoves: number[]
+    +legalSequences: MoveSequence[]
+    +winner: Player | null
+    +winType: WinType | null
+    +cube: DoublingCube
+    +match: MatchState
+  }
+
+  class Point {
+    +owner: Player | null
+    +count: number
+  }
+
+  class DiceState {
+    +values: [number, number]
+    +remaining: number[]
+  }
+
+  class Move {
+    +from: number
+    +to: number
+    +dieUsed: number
+    +isHit: boolean
+  }
+
+  class DoublingCube {
+    +value: number
+    +owner: Player | null
+    +offeredBy: Player | null
+  }
+
+  class MatchState {
+    +targetScore: number
+    +whiteScore: number
+    +blackScore: number
+    +isCrawford: boolean
+    +postCrawford: boolean
+    +matchOver: boolean
+    +matchWinner: Player | null
+  }
+
+  class SaveData {
+    +schemaVersion: number
+    +timestamp: number
+    +appVersion: string
+    +gameState: SerializedGameState
+  }
+
+  enum Player {
+    white
+    black
+  }
+
+  enum GamePhase {
+    rollingForFirst
+    waitingForRoll
+    playerActing
+    aiThinking
+    playerDecidingDouble
+    gameOver
+  }
+
+  enum WinType {
+    single
+    gammon
+    backgammon
+  }
+}
+
+GameState "1" *-- "26" Point       : board
+GameState "1" *-- "1"  DiceState   : dice
+GameState "1" *-- "1"  DoublingCube: cube
+GameState "1" *-- "1"  MatchState  : match
+GameState --> Player    : currentPlayer
+GameState --> GamePhase : phase
+GameState --> WinType   : winType
+GameState "1" o-- "*"  Move        : legalSequences
+
+@enduml

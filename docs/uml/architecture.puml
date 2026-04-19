@@ -1,0 +1,78 @@
+@startuml architecture
+skinparam backgroundColor #FAFAFA
+skinparam componentStyle rectangle
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 13
+skinparam ArrowColor #555555
+skinparam ComponentBorderColor #888888
+skinparam PackageBorderColor #AAAAAA
+
+title Backgammon — Module Architecture
+
+package "Entry Point" {
+  component [main.ts\n(App Orchestration)] as main
+}
+
+package "Game Logic Layer" {
+  component [Types.ts\n(Core Type Definitions)] as types
+  component [GameState.ts\n(Init & Clone)] as gamestate
+  component [Rules.ts\n(Move Validation)] as rules
+  component [MoveGenerator.ts\n(Legal Sequences)] as movegen
+  component [Reducer.ts\n(State Mutations)] as reducer
+}
+
+package "AI Layer" {
+  component [BackgammonAI.ts\n(Heuristic Evaluation)] as ai
+}
+
+package "Rendering Layer" {
+  component [CanvasRenderer.ts\n(Canvas 2D)] as renderer
+  component [AnimationSystem.ts\n(Checker / Dice Anim)] as anim
+}
+
+package "Input Layer" {
+  component [InputController.ts\n(Mouse / Touch Action)] as input
+}
+
+package "Persistence Layer" {
+  component [IndexedDbStore.ts\n(Save / Load / Delete)] as store
+  component [SaveValidation.ts\n(Schema Validation)] as validation
+}
+
+package "UI Layer" {
+  component [HUD.ts\n(Buttons & Overlays)] as hud
+}
+
+package "Utility Layer" {
+  component [AudioSystem.ts\n(Sound Effects)] as audio
+  component [random.ts\n(Dice Rolling)] as random
+  component [Locale.ts\n(i18n)] as locale
+}
+
+database "IndexedDB\n(Browser)" as idb
+
+main --> gamestate : create initial state
+main --> reducer   : dispatch actions
+main --> movegen   : compute legal sequences
+main --> ai        : request AI move
+main --> renderer  : render(gameState)
+main --> input     : handle InputAction
+main --> store     : save / load
+main --> hud       : draw UI overlays
+main --> audio     : play sounds
+main --> locale    : translate text
+
+reducer --> rules   : validate moves
+reducer --> random  : roll dice
+movegen --> rules   : check legality
+ai      --> movegen : enumerate sequences
+
+input   --> renderer : coordinate mapping
+hud     --> renderer : layout info
+
+store     --> validation : validate on load
+store     --> idb        : read / write
+
+renderer --> anim : trigger animations
+
+@enduml

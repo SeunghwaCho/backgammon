@@ -1,0 +1,54 @@
+@startuml state
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam StateBorderColor #888888
+skinparam StateBackgroundColor #FFFFFF
+skinparam ArrowColor #555555
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+
+title Backgammon - Game Phase State Machine
+
+[*] --> rollingForFirst : App start / new game
+
+state "rollingForFirst\nBoth players roll for first move" as rollingForFirst
+state "waitingForRoll\nWaiting for current player to roll" as waitingForRoll
+state "playerActing\nPlayer selects checkers and moves" as playerActing
+state "playerDecidingDouble\nAccept or decline doubling cube" as playerDecidingDouble
+state "aiThinking\nAI evaluates and executes moves" as aiThinking
+state "gameOver\nWinner announced" as gameOver
+
+rollingForFirst --> waitingForRoll       : Higher roll wins
+
+waitingForRoll  --> playerActing         : Player rolls dice
+waitingForRoll  --> aiThinking           : AI turn (auto-roll)
+
+playerActing    --> playerActing         : Sub-move applied\n(dice remaining)
+playerActing    --> playerDecidingDouble : Doubling cube offered
+playerActing    --> waitingForRoll       : All dice used\n(AI turn next)
+playerActing    --> gameOver             : Last checker borne off
+
+note right of playerActing
+  MoveGenerator computes
+  legal sequences each sub-move.
+  Turn auto-ends when no
+  legal moves remain.
+end note
+
+playerDecidingDouble --> playerActing : Accept (cube x2)
+playerDecidingDouble --> gameOver     : Decline (opponent wins)
+
+aiThinking --> waitingForRoll : AI turn complete
+aiThinking --> gameOver       : AI bears off last checker
+
+note right of aiThinking
+  BackgammonAI selects
+  highest scoring MoveSequence
+  via heuristic evaluation.
+end note
+
+gameOver --> waitingForRoll : Next game (match continues)
+gameOver --> [*]            : Match over
+
+@enduml

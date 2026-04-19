@@ -1,0 +1,69 @@
+@startuml sequence
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam SequenceArrowThickness 1.5
+skinparam SequenceParticipantBorderColor #888888
+skinparam SequenceLifeLineBorderColor #AAAAAA
+skinparam SequenceMessageAlign center
+skinparam ActorBorderColor #555555
+
+title Backgammon — Player Turn Sequence
+
+actor       "Player"          as P
+participant "InputController" as IC
+participant "main.ts"         as M
+participant "Reducer"         as R
+participant "MoveGenerator"   as MG
+participant "Rules"           as RU
+participant "CanvasRenderer"  as CR
+participant "IndexedDbStore"  as DB
+participant "BackgammonAI"    as AI
+
+== Player Turn: Roll ==
+P  -> IC : click ROLL button
+IC -> M  : onAction({ type: 'rollDice' })
+M  -> R  : rollDice(state, dice)
+R  -> MG : generateLegalSequences(board, player, dice)
+MG -> RU : isSingleMoveValid(...)
+RU --> MG: valid / invalid
+MG --> R : MoveSequence[]
+R  --> M : new GameState (phase=playerActing)
+M  -> DB : saveGame(state)
+M  -> CR : render(state)
+CR --> P : board + dice + highlights
+
+== Player Turn: Move ==
+P  -> IC : click checker
+IC -> M  : onAction({ type: 'selectPoint', point })
+M  -> R  : selectPoint(state, point)
+R  -> MG : getValidDestinations(...)
+R  --> M : state with validMoves highlighted
+M  -> CR : render(state)
+
+P  -> IC : click destination
+IC -> M  : onAction({ type: 'makeMove', from, to })
+M  -> R  : applyPlayerMove(state, from, to)
+R  -> RU : confirm move legal
+R  --> M : new GameState
+M  -> DB : saveGame(state)
+M  -> CR : render(state)
+
+alt All dice used / no moves left
+  M  -> R  : endTurn(state)
+  R  --> M : phase = aiThinking
+  M  -> DB : saveGame(state)
+  M  -> AI : chooseBestSequence(state)
+  AI -> MG : generateLegalSequences(...)
+  MG --> AI : MoveSequence[]
+  AI --> M  : best MoveSequence
+  loop each sub-move
+    M  -> R  : applyMove(state, move)
+    R  --> M : new GameState
+    M  -> CR : render(state)
+  end
+  M  -> DB : saveGame(state)
+  M  -> CR : render(state)
+end
+
+@enduml

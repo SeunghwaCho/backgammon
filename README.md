@@ -11,6 +11,22 @@ A fully playable single-player backgammon game (Human vs AI) built with TypeScri
 - Touch support for mobile/tablet
 - Robust error handling and recovery
 
+## Architecture Diagrams
+
+### Module Architecture
+![Module Architecture](docs/uml/architecture.png)
+
+### Core Type Diagram
+![Core Type Diagram](docs/uml/classes.png)
+
+### Game Phase State Machine
+![Game Phase State Machine](docs/uml/state.png)
+
+### Player Turn Sequence
+![Player Turn Sequence](docs/uml/sequence.png)
+
+---
+
 ## Project Structure
 
 ```
