@@ -1,0 +1,61 @@
+@startuml ai_strategy
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 13
+skinparam ArrowColor #444444
+skinparam ActivityBorderColor #888888
+skinparam ActivityBackgroundColor #FFFFFF
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F9A825
+
+title Backgammon AI -- Heuristic Best-Move Selection
+
+|AI Decision Flow|
+start
+
+:Roll dice\n(determine roll result);
+
+:Enumerate ALL legal\nmove sequences\nvia MoveGenerator;
+
+note right
+  Includes:
+  bar re-entry priority,
+  doubles (x4 moves),
+  both-dice enforcement,
+  higher-die rule
+end note
+
+if (Any legal sequences?) then (none)
+  :Pass turn;
+  stop
+else (yes)
+endif
+
+:Iterate over each sequence;
+
+repeat
+  :Simulate sequence\non cloned board state;
+  :Call evaluatePosition()\n-> compute score;
+  note right
+    score = weighted sum:
+    bear-off progress   x10
+    pip count diff      x0.3
+    my blots            x-2
+    opp blots           x+1.5
+    my safe points      x+1.5
+    home board checkers x+0.5
+    my bar checkers     x-8
+    opp bar checkers    x+5
+    prime blocking      x+2
+    + tiny random noise
+  end note
+repeat while (Unscored sequences remain?) is (yes)
+->no;
+
+:Select sequence\nwith highest score;
+
+:Execute each move\nwith 500ms delay\n(visible to player);
+
+stop
+
+@enduml
